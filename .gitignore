@@ -43,3 +43,4 @@ profiles/
 *.profile
 
 .turbo/
+release/

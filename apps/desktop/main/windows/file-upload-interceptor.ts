@@ -315,7 +315,7 @@ export class FileUploadInterceptor {
         const checkResult = await this.cdpDebugger!.sendCommand('Runtime.evaluate', {
           expression: `
             (function() {
-              const inputs = Array.from(document.querySelectorAll('input[type="file"][data-poly-apps-pending-file]'));
+              const inputs = Array.from(document.querySelectorAll('input[type="file"][data-qiyi-pending-file]'));
               if (inputs.length === 0) return [];
               
               const result = inputs.map(input => ({

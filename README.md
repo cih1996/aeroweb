@@ -5,7 +5,7 @@
 ## 📁 项目结构
 
 ```
-poly-apps/
+qiyi/
 ├── apps/                          # 应用目录
 │   ├── desktop/                   # Electron 桌面应用
 │   │   ├── main/                   # 主进程代码

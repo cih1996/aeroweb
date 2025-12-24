@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "build:desktop": "turbo run build --filter=@poly-apps/desktop...",
+    "build:desktop": "turbo run build --filter=@qiyi/desktop...",
     "dist": "pnpm build:desktop && cd apps/desktop && pnpm dist",
     "dist:win": "pnpm build:desktop && cd apps/desktop && pnpm dist:win",
     "dist:mac": "pnpm build:desktop && cd apps/desktop && pnpm dist:mac",
