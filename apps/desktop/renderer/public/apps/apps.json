@@ -1,0 +1,65 @@
+{
+  "categories": [
+    {
+      "id": "social",
+      "name": "社交",
+      "icon": "category-social.svg",
+      "color": "#0088cc"
+    },
+    {
+      "id": "shopping",
+      "name": "购物",
+      "icon": "category-shopping.svg",
+      "color": "#25D366"
+    },
+    {
+      "id": "video",
+      "name": "视频",
+      "icon": "category-video.svg",
+      "color": "#FF0050"
+    }
+  ],
+  "apps": [
+    {
+      "id": "temu",
+      "name": "Temu",
+      "url": "https://seller.kuajingmaihuo.com/settle/site-main?redirectUrl=https%3A%2F%2Fseller.kuajingmaihuo.com%2F",
+      "icon": "temu.ico",
+      "color": "#25D366",
+      "category": "shopping"
+    },
+    {
+      "id": "telegram",
+      "name": "Telegram",
+      "url": "https://web.telegram.org",
+      "icon": "telegram.svg",
+      "color": "#0088cc",
+      "category": "social"
+    },
+    {
+      "id": "x",
+      "name": "X (Twitter)",
+      "url": "https://x.com",
+      "icon": "x.svg",
+      "color": "#000000",
+      "category": "social"
+    },
+    {
+      "id": "douyin",
+      "name": "抖音",
+      "url": "https://www.douyin.com",
+      "icon": "tiktok.svg",
+      "color": "#000000",
+      "category": "video"
+    },
+    {
+      "id": "bilibili",
+      "name": "哔哩哔哩",
+      "url": "https://www.bilibili.com/",
+      "icon": "bilibili.svg",
+      "color": "#000000",
+      "category": "video"
+    }
+  ]
+}
+

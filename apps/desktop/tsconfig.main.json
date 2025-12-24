@@ -1,0 +1,28 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist/main",
+    "rootDir": "./main",
+    "module": "CommonJS",
+    "target": "ES2022",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": false,
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@qiyi/browser-service": ["../browser-service/src"],
+      "@qiyi/shared": ["../../packages/shared/src"]
+    }
+  },
+  "include": ["main/**/*"],
+  "exclude": ["node_modules", "renderer"],
+  "references": [
+    { "path": "../browser-service" },
+    { "path": "../../packages/shared" }
+  ]
+}
+

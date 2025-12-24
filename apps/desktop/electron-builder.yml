@@ -1,0 +1,60 @@
+appId: com.qiyi.desktop
+productName: 奇易聚合浏览AI+
+copyright: Copyright © 2024
+
+# 使用国内镜像源加速下载（可选，如果代理更快可以删除此配置）
+electronDownload:
+  mirror: https://npmmirror.com/mirrors/electron/
+
+directories:
+  buildResources: build
+  output: release
+
+files:
+  - dist/main/**/*
+  - dist/preload/**/*
+  - renderer/dist/**/*  # 包含所有 renderer/dist 内容（包括 Vite 从 public 复制的文件）
+  - package.json
+  - "!**/*.{md,ts,map}"
+  - "!node_modules/**/*.{md,ts,map}"
+  - "!node_modules/.cache"
+  - "!node_modules/.bin"
+
+# 自动处理 workspace 依赖
+asarUnpack:
+  - "**/node_modules/@qiyi/**/*"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  # 注意：rcedit 错误通常是因为文件被占用，可以忽略，不影响应用功能
+  # 如果频繁出现，可以关闭正在运行的应用或文件资源管理器
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.icns
+  category: public.app-category.utilities
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  icon: build/icon.png
+  category: Utility
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: ${productName}
+

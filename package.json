@@ -1,0 +1,30 @@
+{
+  "name": "奇易聚合浏览AI+",
+  "version": "1.0.0",
+  "private": true,
+  "description": "一款基于AI的多环境管理浏览器应用",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "build:desktop": "turbo run build --filter=@poly-apps/desktop...",
+    "dist": "pnpm build:desktop && cd apps/desktop && pnpm dist",
+    "dist:win": "pnpm build:desktop && cd apps/desktop && pnpm dist:win",
+    "dist:mac": "pnpm build:desktop && cd apps/desktop && pnpm dist:mac",
+    "dist:linux": "pnpm build:desktop && cd apps/desktop && pnpm dist:linux",
+    "pack": "pnpm build:desktop && cd apps/desktop && pnpm pack",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.3.0"
+  },
+  "packageManager": "pnpm@8.15.0",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "dependencies": {
+    "pnpm": "^10.25.0"
+  }
+}

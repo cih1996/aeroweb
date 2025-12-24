@@ -1,0 +1,48 @@
+{
+  "name": "@qiyi/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/main/index.js",
+  "author": "奇易聚合浏览AI+",
+  "description": "一款基于AI的多环境管理浏览器应用",
+  "scripts": {
+    "dev": "concurrently -k --raw --kill-others-on-fail=false \"pnpm:dev:main\" \"pnpm:dev:preload\" \"pnpm:dev:renderer\" \"pnpm:dev:electron\"",
+    "dev:main": "tsc -p tsconfig.main.json --watch",
+    "dev:preload": "tsc -p tsconfig.preload.json --watch",
+    "dev:renderer": "cd renderer && vite",
+    "dev:electron": "node scripts/start-electron.js",
+    "build": "pnpm build:main && pnpm build:preload && pnpm build:renderer",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:preload": "tsc -p tsconfig.preload.json",
+    "build:renderer": "cd renderer && vite build",
+    "start": "electron .",
+    "pack": "pnpm clean:release && pnpm build && electron-builder --dir",
+    "dist": "pnpm clean:release && pnpm build && electron-builder",
+    "dist:win": "pnpm clean:release && pnpm build && electron-builder --win",
+    "dist:mac": "pnpm clean:release && pnpm build && electron-builder --mac",
+    "dist:linux": "pnpm clean:release && pnpm build && electron-builder --linux",
+    "dist:win:proxy": "cross-env HTTP_PROXY=$env:HTTP_PROXY HTTPS_PROXY=$env:HTTPS_PROXY electron-builder --win",
+    "dist:mac:proxy": "cross-env HTTP_PROXY=$env:HTTP_PROXY HTTPS_PROXY=$env:HTTPS_PROXY electron-builder --mac",
+    "dist:linux:proxy": "cross-env HTTP_PROXY=$env:HTTP_PROXY HTTPS_PROXY=$env:HTTPS_PROXY electron-builder --linux",
+    "clean": "node scripts/clean-release.js && node -e \"require('fs').rmSync('dist', {recursive: true, force: true})\"",
+    "clean:release": "node scripts/clean-release.js"
+  },
+  "dependencies": {
+    "@qiyi/browser-service": "workspace:*",
+    "@qiyi/shared": "workspace:*",
+    "glob": "^13.0.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^3.0.0",
+    "@types/glob": "^9.0.0",
+    "@types/node": "^20.10.0",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^39.2.7",
+    "electron-builder": "^24.9.1",
+    "svelte": "^4.2.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "wait-on": "^7.2.0"
+  }
+}
