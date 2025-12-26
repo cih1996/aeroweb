@@ -32,6 +32,9 @@
       
       // 根据方法名调用对应的函数
       switch (methodName) {
+        case 'douyin_getCurrentAwemeInfo':
+          method = douyinActions.getCurrentAwemeInfo;
+          break;
         case 'douyin_getVideoInfo':
           method = douyinActions.getVideoInfo;
           break;
@@ -50,8 +53,14 @@
         case 'pasteIntoDraft':
           method = douyinActions.sendComment;
           break;
-        case 'douyin_getCurrentInfo':
-          method = douyinActions.getCurrentInfo;
+        case 'douyin_getMyInfo':
+          method = douyinActions.getMyInfo;
+          break;
+        case 'douyin_getCurrentUserInfo':
+          method = douyinActions.getCurrentUserInfo;
+          break;
+        case 'douyin_getCurrentUserInfo2':
+          method = douyinActions.getCurrentUserInfo2;
           break;
         default:
           throw new Error(`未知的方法: ${methodName}`);
@@ -63,6 +72,44 @@
     } catch (err: any) {
       error = err.message || String(err);
       console.error('[JSEditorPanel] 执行错误:', err);
+    } finally {
+      executing = false;
+    }
+  }
+
+
+  // 执行下载视频
+  async function executeDownloadVideo() {
+    if (!tabId) {
+      error = '没有活动的标签页';
+      return;
+    }
+    executing = true;
+    error = null;
+    result = null;
+    try {
+      // 1. 获取当前视频详细信息
+      const awemeInfo = await douyinActions.getCurrentAwemeInfo(tabId);
+
+      // 2. 提取下载地址
+      let downloadUrl = null;
+      if (awemeInfo && awemeInfo.video && awemeInfo.video.download) {
+        downloadUrl = awemeInfo.video.download;
+      }
+
+      if (!downloadUrl) {
+        error = '未能获取视频下载链接';
+        console.log("[JSEditorPanel] 未能获取到下载结果",awemeInfo)
+        executing = false;
+        return;
+      }
+
+      // 3. 调用主进程接口进行下载
+      await window.electronAPI.tab.downloadUrl(tabId, downloadUrl);
+
+      result = { success: true, msg: '下载已开始', url: downloadUrl };
+    } catch (err: any) {
+      error = err.message || String(err);
     } finally {
       executing = false;
     }
@@ -123,6 +170,26 @@
             获取视频信息
           </button>
           <button 
+          class="action-btn"
+          on:click={() => executeDouyinMethod('douyin_getCurrentAwemeInfo')}
+          disabled={executing || !tabId}
+          title="获取当前视频详细信息"
+        >
+          获取视频详细信息
+        </button>
+
+
+        <button 
+        class="action-btn"
+        on:click={() => executeDownloadVideo()}
+        disabled={executing || !tabId}
+        title="下载当前视频"
+      >
+        下载视频
+      </button>
+
+
+          <button 
             class="action-btn"
             on:click={() => executeDouyinMethod('douyin_digg')}
             disabled={executing || !tabId}
@@ -162,11 +229,27 @@
           </button>
           <button 
             class="action-btn"
-            on:click={() => executeDouyinMethod('douyin_getCurrentInfo')}
+            on:click={() => executeDouyinMethod('douyin_getMyInfo')}
             disabled={executing || !tabId}
             title="获取个人资料"
           >
             获取个人资料
+          </button>
+          <button 
+            class="action-btn"
+            on:click={() => executeDouyinMethod('douyin_getCurrentUserInfo')}
+            disabled={executing || !tabId}
+            title="获取当前用户资料"
+          >
+            获取当前资料
+          </button>
+          <button 
+            class="action-btn"
+            on:click={() => executeDouyinMethod('douyin_getCurrentUserInfo2')}
+            disabled={executing || !tabId}
+            title="获取当前博主资料"
+          >
+            获取博主资料
           </button>
         </div>
         <div class="input-group">

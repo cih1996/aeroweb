@@ -90,6 +90,7 @@
     if (isSelectMode) {
       toggleSelect(config.id);
     } else {
+      console.log("[MyAppsView] 打开指定应用配置",config)
       dispatch('configClick', { config });
     }
   }

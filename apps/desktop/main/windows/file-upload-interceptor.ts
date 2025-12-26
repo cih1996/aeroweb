@@ -48,10 +48,12 @@ export class FileUploadInterceptor {
 
   /**
    * 设置文件选择拦截器（CDP 方式）
+   * 注意：即使没有默认测试图片，也会初始化 CDP 调试器，因为用户可能会提供自定义路径
    */
   async setup(): Promise<void> {
-    if (this.testImagePaths.length === 0) {
-      console.warn('[FileUploadInterceptor] ⚠️ 测试图片路径不存在，无法设置拦截器');
+    // 检查是否已经初始化
+    if (this.cdpDebugger) {
+      console.log('[FileUploadInterceptor] CDP 调试器已初始化，跳过重复初始化');
       return;
     }
 
@@ -118,8 +120,11 @@ export class FileUploadInterceptor {
       }, 500);
 
       console.log('[FileUploadInterceptor] ✅ 文件选择拦截器已设置（被动模式）');
-    } catch (error) {
+    } catch (error: any) {
       console.error('[FileUploadInterceptor] ❌ 启用 CDP 失败:', error);
+      // 清理失败的调试器引用
+      this.cdpDebugger = null;
+      throw error; // 重新抛出错误，让调用者知道初始化失败
     }
   }
 
@@ -128,17 +133,68 @@ export class FileUploadInterceptor {
    * @param customImagePaths 自定义图片路径数组，如果提供则使用此数组，否则使用默认的 testImagePaths
    */
   async triggerScan(customImagePaths?: string[]): Promise<{ success: boolean; count: number; message: string }> {
-    const imagePaths = customImagePaths && customImagePaths.length > 0 
-      ? customImagePaths 
-      : this.testImagePaths;
+    // 如果 CDP 调试器未初始化，尝试初始化
+    if (!this.cdpDebugger) {
+      console.log('[FileUploadInterceptor] CDP 调试器未初始化，尝试初始化...');
+      try {
+        await this.setup();
+      } catch (error: any) {
+        console.error('[FileUploadInterceptor] 初始化 CDP 调试器失败:', error);
+        return {
+          success: false,
+          count: 0,
+          message: `CDP 调试器初始化失败: ${error.message || '未知错误'}，请确保页面已加载完成`
+        };
+      }
+      
+      // 如果初始化后仍然没有调试器，返回错误
+      if (!this.cdpDebugger) {
+        return {
+          success: false,
+          count: 0,
+          message: 'CDP 调试器初始化失败，请确保页面已加载完成'
+        };
+      }
+    }
     
-    if (!this.cdpDebugger || imagePaths.length === 0) {
+    // 确定使用的图片路径
+    let imagePaths: string[] = [];
+    if (customImagePaths && customImagePaths.length > 0) {
+      console.log('[FileUploadInterceptor] 收到自定义图片路径:', customImagePaths);
+      // 验证自定义路径是否存在
+      const validPaths: string[] = [];
+      const invalidPaths: string[] = [];
+      for (const path of customImagePaths) {
+        if (path && existsSync(path)) {
+          validPaths.push(path);
+          console.log(`[FileUploadInterceptor] ✅ 图片路径有效: ${path}`);
+        } else {
+          invalidPaths.push(path);
+          console.warn(`[FileUploadInterceptor] ⚠️ 图片路径不存在: ${path}`);
+        }
+      }
+      imagePaths = validPaths;
+      
+      if (invalidPaths.length > 0) {
+        console.warn(`[FileUploadInterceptor] ⚠️ 有 ${invalidPaths.length} 个无效路径，已过滤`);
+      }
+    } else {
+      imagePaths = this.testImagePaths;
+      console.log('[FileUploadInterceptor] 使用默认测试图片路径:', imagePaths);
+    }
+    
+    if (imagePaths.length === 0) {
+      const errorMsg = customImagePaths && customImagePaths.length > 0
+        ? `所有图片路径都不存在或无效。请检查路径是否正确。无效路径: ${customImagePaths.join(', ')}`
+        : '图片路径不存在或无效，请检查图片路径是否正确';
       return {
         success: false,
         count: 0,
-        message: 'CDP 调试器未初始化或图片路径不存在'
+        message: errorMsg
       };
     }
+    
+    console.log(`[FileUploadInterceptor] ✅ 将使用 ${imagePaths.length} 个有效图片路径进行上传`);
     
     // 设置当前拦截使用的图片路径
     this.currentImagePaths = [...imagePaths];
@@ -265,31 +321,81 @@ export class FileUploadInterceptor {
             const target = event.target;
             let fileInput = null;
             
+            // 只拦截直接点击文件输入的情况
             if (target.tagName === 'INPUT' && target.type === 'file') {
               fileInput = target;
             } else {
-              const parent = target.closest('[data-testid*="upload"], [class*="upload"], [class*="UPD"]');
+              // 检查是否点击了包含文件输入的元素（更精确的匹配）
+              // 只检查按钮或明确标记为上传的元素
+              const parent = target.closest('button, [data-testid*="upload"], [class*="upload-trigger"], [class*="upload-button"]');
               if (parent) {
+                // 只在父元素内查找文件输入，不查找整个文档
                 fileInput = parent.querySelector('input[type="file"]');
+              }
+              
+              // 如果点击的元素本身就是文件输入的容器
+              if (!fileInput && (target.closest('label') || target.getAttribute('for'))) {
+                const label = target.closest('label');
+                if (label) {
+                  const forAttr = label.getAttribute('for');
+                  if (forAttr) {
+                    fileInput = document.getElementById(forAttr);
+                    if (fileInput && fileInput.type !== 'file') {
+                      fileInput = null;
+                    }
+                  } else {
+                    fileInput = label.querySelector('input[type="file"]');
+                  }
+                }
               }
             }
             
-            if (fileInput && !fileInput.dataset.polyAppsFileSet) {
+            // 只有在找到文件输入且未设置过的情况下才拦截
+            if (fileInput && fileInput.type === 'file' && !fileInput.dataset.polyAppsFileSet) {
+              console.log('[Poly Apps] 🎯 拦截到文件输入点击，准备设置文件');
               event.preventDefault();
               event.stopPropagation();
               event.stopImmediatePropagation();
               
               fileInput.dataset.polyAppsPendingFile = 'true';
+              console.log('[Poly Apps] ✅ 已标记文件输入为待处理');
+            } else if (fileInput && fileInput.type === 'file') {
+              console.log('[Poly Apps] ⚠️ 文件输入已设置过，跳过');
             }
+            // 如果没有找到文件输入，不拦截，让事件正常传播
           };
           
           // 保存引用以便后续移除
           window.__polyAppsFileClickInterceptor = clickHandler;
           
-          // 添加新的监听器
+          // 添加新的监听器（使用捕获阶段，确保能拦截到所有点击）
           document.addEventListener('click', clickHandler, true);
           
-          console.log('[Poly Apps] 文件输入点击拦截器已设置');
+          // 也监听 mousedown 事件，因为有些组件可能在 mousedown 时处理文件选择
+          // 但只在明确是文件上传相关元素时才拦截
+          const mouseDownHandler = function(event) {
+            const target = event.target;
+            
+            // 只拦截直接点击文件输入的情况
+            if (target.tagName === 'INPUT' && target.type === 'file') {
+              clickHandler(event);
+            } else {
+              // 检查是否点击了明确标记为上传的按钮
+              const parent = target.closest('button[data-testid*="upload"], button[class*="upload"], [data-testid*="upload-button"]');
+              if (parent) {
+                const fileInput = parent.querySelector('input[type="file"]');
+                if (fileInput && fileInput.type === 'file') {
+                  clickHandler(event);
+                }
+              }
+            }
+            // 其他情况不拦截，让事件正常传播
+          };
+          
+          document.addEventListener('mousedown', mouseDownHandler, true);
+          window.__polyAppsFileMouseDownInterceptor = mouseDownHandler;
+          
+          console.log('[Poly Apps] ✅ 文件输入点击拦截器已设置（支持 click 和 mousedown）');
         })();
       `,
       userGesture: false
@@ -303,7 +409,7 @@ export class FileUploadInterceptor {
       this.checkInterval = null;
     }
 
-    // 定时检查待设置的文件输入
+    // 定时检查待设置的文件输入（更频繁的检查，确保能及时响应）
     this.checkInterval = setInterval(async () => {
       try {
         // 检查是否正在拦截
@@ -315,19 +421,34 @@ export class FileUploadInterceptor {
         const checkResult = await this.cdpDebugger!.sendCommand('Runtime.evaluate', {
           expression: `
             (function() {
-              const inputs = Array.from(document.querySelectorAll('input[type="file"][data-qiyi-pending-file]'));
-              if (inputs.length === 0) return [];
+              // 注意：dataset.polyAppsPendingFile 对应 data-poly-apps-pending-file 属性
+              const inputs = Array.from(document.querySelectorAll('input[type="file"]'));
+              const pendingInputs = inputs.filter(input => {
+                const hasPending = input.dataset.polyAppsPendingFile === 'true';
+                if (hasPending) {
+                  console.log('[Poly Apps] 🔍 发现待处理的文件输入:', {
+                    testId: input.getAttribute('data-testid') || '',
+                    id: input.id || '',
+                    className: input.className || '',
+                    hasPending: true
+                  });
+                }
+                return hasPending;
+              });
               
-              const result = inputs.map(input => ({
+              if (pendingInputs.length === 0) return [];
+              
+              const result = pendingInputs.map(input => ({
                 testId: input.getAttribute('data-testid') || '',
                 id: input.id || '',
                 className: input.className || ''
               }));
               
-              inputs.forEach(input => {
+              pendingInputs.forEach(input => {
                 input.dataset.polyAppsPendingFile = '';
               });
               
+              console.log('[Poly Apps] ✅ 找到', pendingInputs.length, '个待处理的文件输入');
               return result;
             })()
           `,
@@ -341,7 +462,24 @@ export class FileUploadInterceptor {
           // 为每个待设置的文件输入设置文件
           for (const inputInfo of pendingInputs) {
             try {
-              const searchQuery = `input[type="file"]${inputInfo.testId ? `[data-testid="${inputInfo.testId}"]` : ''}`;
+              console.log(`[FileUploadInterceptor] 🔍 查找文件输入:`, inputInfo);
+              
+              // 尝试多种查询方式
+              let searchQuery = `input[type="file"]`;
+              if (inputInfo.testId) {
+                searchQuery = `input[type="file"][data-testid="${inputInfo.testId}"]`;
+              } else if (inputInfo.id) {
+                searchQuery = `input[type="file"]#${inputInfo.id}`;
+              } else if (inputInfo.className) {
+                // 使用第一个类名
+                const firstClass = inputInfo.className.split(' ')[0];
+                if (firstClass) {
+                  searchQuery = `input[type="file"].${firstClass}`;
+                }
+              }
+              
+              console.log(`[FileUploadInterceptor] 🔍 使用查询: ${searchQuery}`);
+              
               const searchResult = await this.cdpDebugger!.sendCommand('DOM.performSearch', {
                 query: searchQuery,
                 includeUserAgentShadowDOM: false
@@ -366,28 +504,41 @@ export class FileUploadInterceptor {
                   // 标记为已处理
                   this.processedNodeIds.add(nodeId);
 
+                  console.log(`[FileUploadInterceptor] 📤 准备为节点 ${nodeId} 设置文件，文件数量: ${this.currentImagePaths.length}`);
+                  console.log(`[FileUploadInterceptor] 📤 文件路径:`, this.currentImagePaths);
+
                   // 设置文件（支持多文件上传）
-                  await this.cdpDebugger!.sendCommand('DOM.setFileInputFiles', {
-                    nodeId: nodeId,
-                    files: this.currentImagePaths // 使用当前拦截的图片路径
-                  });
+                  try {
+                    await this.cdpDebugger!.sendCommand('DOM.setFileInputFiles', {
+                      nodeId: nodeId,
+                      files: this.currentImagePaths // 使用当前拦截的图片路径
+                    });
+                    console.log('[FileUploadInterceptor] ✅ 已通过 CDP 为节点', nodeId, '设置文件');
 
-                  // 标记已设置
-                  await this.cdpDebugger!.sendCommand('Runtime.evaluate', {
-                    expression: `
-                      (function() {
-                        const input = document.querySelector('${searchQuery.replace(/"/g, '\\"')}');
-                        if (input) {
-                          input.dataset.polyAppsFileSet = 'true';
-                        }
-                      })();
-                    `
-                  });
+                    // 标记已设置
+                    await this.cdpDebugger!.sendCommand('Runtime.evaluate', {
+                      expression: `
+                        (function() {
+                          const input = document.querySelector('${searchQuery.replace(/"/g, '\\"')}');
+                          if (input) {
+                            input.dataset.polyAppsFileSet = 'true';
+                            // 触发 change 事件，让页面知道文件已选择
+                            const changeEvent = new Event('change', { bubbles: true });
+                            input.dispatchEvent(changeEvent);
+                            console.log('[Poly Apps] ✅ 已设置文件并触发 change 事件');
+                          }
+                        })();
+                      `
+                    });
 
-                  console.log('[FileUploadInterceptor] ✅ 已通过 CDP 为节点', nodeId, '设置文件（点击时）');
+                    console.log('[FileUploadInterceptor] ✅ 已通过 CDP 为节点', nodeId, '设置文件（点击时）');
 
-                  // 设置文件成功后，立即停止拦截（一次性拦截）
-                  this.stop();
+                    // 设置文件成功后，立即停止拦截（一次性拦截）
+                    this.stop();
+                  } catch (fileError: any) {
+                    console.error('[FileUploadInterceptor] ❌ 设置文件失败:', fileError);
+                    // 继续处理其他待设置的文件输入
+                  }
                 }
 
                 await this.cdpDebugger!.sendCommand('DOM.discardSearchResults', { searchId: searchResult.searchId });

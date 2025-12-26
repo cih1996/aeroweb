@@ -94,6 +94,12 @@ export async function getVideoInfo(tabId: string | null): Promise<any> {
   return executeDouyinMethod(tabId, 'douyin_getVideoInfo');
 }
 
+/** 获取视频详细信息 */
+export async function getCurrentAwemeInfo(tabId: string | null): Promise<any> {
+  return executeDouyinMethod(tabId, 'douyin_getCurrentAwemeInfo');
+}
+
+
 /**
  * 点赞视频
  */
@@ -139,6 +145,21 @@ export async function sendComment(
 /**
  * 个人资料
  */
-export async function getCurrentInfo(tabId: string | null): Promise<any> {
-  return executeDouyinMethod(tabId, 'douyin_getCurrentInfo');
+export async function getMyInfo(tabId: string | null): Promise<any> {
+  return executeDouyinMethod(tabId, 'douyin_getMyInfo');
+}
+
+/**
+ * 当前用户资料
+ */
+export async function getCurrentUserInfo(tabId: string | null): Promise<any> {
+  return executeDouyinMethod(tabId, 'douyin_getCurrentUserInfo');
+}
+
+
+/**
+ * 当前用户资料
+ */
+export async function getCurrentUserInfo2(tabId: string | null): Promise<any> {
+  return executeDouyinMethod(tabId, 'douyin_getCurrentUserInfo2');
 }

@@ -32,11 +32,3 @@ export interface Profile {
   };
 }
 
-export interface BrowserViewConfig {
-  url: string;
-  width: number;
-  height: number;
-  x: number;
-  y: number;
-}
-

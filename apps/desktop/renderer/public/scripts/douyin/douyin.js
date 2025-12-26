@@ -39,6 +39,81 @@ function douyin_getVideoInfo(){
     return info
 }
 
+// 获取当前视频信息
+function douyin_getCurrentAwemeInfo() {
+	const containerKey = Object.keys(root).find(k => k.startsWith('__reactContainer$'));
+	const rootData = root[containerKey];
+	if (!rootData || !rootData.stateNode || !rootData.stateNode.current) {
+	  return null;
+	}
+  
+  
+	function walkFiber(fiber, visit) {
+	  if (!fiber) return;
+	  const result = visit(fiber);
+	  if (result !== undefined) return result;
+	  if (fiber.child) {
+		const res = walkFiber(fiber.child, visit);
+		if (res !== undefined) return res;
+	  }
+	  if (fiber.sibling) {
+		const res = walkFiber(fiber.sibling, visit);
+		if (res !== undefined) return res;
+	  }
+	  return undefined;
+	}
+  
+	return walkFiber(rootData.stateNode.current, fiber => {
+	  const p = fiber.memoizedProps;
+	  if (p) {
+		for (const [key, value] of Object.entries(p)) {
+		  // 假设你的目标是 p.user
+		  let data = null;
+		  if (key === "playerProps" && value && value.awemeInfo){
+			data = value.awemeInfo;
+		  }
+		  if (key === "currentAwemeInfo" && value && value.authorInfo) {
+				data = value;
+		  }
+
+		  if(data){
+			return {
+				'awemeId':data.awemeId,
+				'authorInfo':{
+				  'avatarUri':data.authorInfo.avatarUri,
+				  'nickname':data.authorInfo.nickname,
+				  'secUid':data.authorInfo.secUid,
+				  'uid':data.authorInfo.uid
+				},
+				'caption':data.caption,
+				'createTime':data.createTime,
+				'desc':data.desc,
+				'stats':data.stats,
+				'video':{
+				  'dataSize':data.video.dataSize,
+				  'duration':data.video.duration,
+				  'height':data.video.height,
+				  'width':data.video.width,
+				  'download_h265':data.video.playApiH265,
+				  'download':data.video.playApi,
+				  'ratio':data.video.ratio
+				},
+				'tab':data.videoTag
+
+			}
+		  }
+
+		}
+	  }
+  
+	  return undefined;
+	}) || null;
+}
+
+
+
+  
+
 // 获取评论区信息 (pageCount=翻页次数,0则不翻页,提供参数后会先翻页在一次性获取多条评论)
 async function douyin_getComments(pageCout = 0){
 	function findChildByText(parent, text) {
@@ -194,7 +269,7 @@ function douyin_toJingXuan(){
 }
 
 // 个人资料
-function douyin_getCurrentInfo(){
+function douyin_getMyInfo(){
 	const containerKey = Object.keys(root).find(k => k.startsWith('__reactContainer$'));
 	const rootData = root[containerKey];
 	function walkFiber(fiber, visit) {
@@ -217,4 +292,130 @@ function douyin_getCurrentInfo(){
         return p.uInfo;
       }
     }) || null;
+}
+
+
+// 他人资料(需切换到资料页)
+function douyin_getCurrentUserInfo() {
+	const containerKey = Object.keys(root).find(k => k.startsWith('__reactContainer$'));
+	const rootData = root[containerKey];
+	if (!rootData || !rootData.stateNode || !rootData.stateNode.current) {
+	  return null;
+	}
+  
+  
+	function walkFiber(fiber, visit) {
+	  if (!fiber) return;
+	  const result = visit(fiber);
+	  if (result !== undefined) return result;
+	  if (fiber.child) {
+		const res = walkFiber(fiber.child, visit);
+		if (res !== undefined) return res;
+	  }
+	  if (fiber.sibling) {
+		const res = walkFiber(fiber.sibling, visit);
+		if (res !== undefined) return res;
+	  }
+	  return undefined;
+	}
+  
+	return walkFiber(rootData.stateNode.current, fiber => {
+	  const p = fiber.memoizedProps;
+	  if (p) {
+		for (const [key, value] of Object.entries(p)) {
+		  // 假设你的目标是 p.user
+		  if (key === "user" && value && value.user) {
+			// 提取 user 基本信息，忽略不相关图片、系统字段等
+			const user = value.user;
+			if (user) {
+			  return {
+				uid: user.uid,
+				secUid: user.secUid,
+				nickname: user.nickname,
+				realName: user.realName,
+				desc: user.desc,
+				gender: user.gender,
+				followerCount: user.followerCount,
+				followingCount: user.followingCount,
+				awemeCount: user.awemeCount,
+				favoritingCount: user.favoritingCount,
+				totalFavorited: user.totalFavorited,
+				country: user.country,
+				province: user.province,
+				city: user.city,
+				ipLocation: user.ipLocation
+			  };
+			}
+		  }
+		}
+	  }
+  
+	  return undefined;
+	}) || null;
+}
+  
+// 获取个人资料(视频播放页面获取)
+function douyin_getCurrentUserInfo2() {
+	const containerKey = Object.keys(root).find(k => k.startsWith('__reactContainer$'));
+	const rootData = root[containerKey];
+	if (!rootData || !rootData.stateNode || !rootData.stateNode.current) {
+	  return null;
+	}
+  
+  
+	function walkFiber(fiber, visit) {
+	  if (!fiber) return;
+	  const result = visit(fiber);
+	  if (result !== undefined) return result;
+	  if (fiber.child) {
+		const res = walkFiber(fiber.child, visit);
+		if (res !== undefined) return res;
+	  }
+	  if (fiber.sibling) {
+		const res = walkFiber(fiber.sibling, visit);
+		if (res !== undefined) return res;
+	  }
+	  return undefined;
+	}
+  
+	return walkFiber(rootData.stateNode.current, fiber => {
+	  const p = fiber.memoizedProps;
+	  if (p) {
+		for (const [key, value] of Object.entries(p)) {
+		  // 假设你的目标是 p.user
+
+			if(key === "children"){
+				try{
+					const user = p.children[0].props.children.props.children.props.children._payload.value.props.user.user
+					if (user) {
+						return {
+						uid: user.uid,
+						secUid: user.secUid,
+						nickname: user.nickname,
+						realName: user.realName,
+						desc: user.desc,
+						gender: user.gender,
+						followerCount: user.followerCount,
+						followingCount: user.followingCount,
+						awemeCount: user.awemeCount,
+						favoritingCount: user.favoritingCount,
+						totalFavorited: user.totalFavorited,
+						country: user.country,
+						province: user.province,
+						city: user.city,
+						ipLocation: user.ipLocation
+						};
+					}
+				}catch(e){
+					
+				}
+		
+			}
+		}
+		  
+		
+	  }
+  
+	  return undefined;
+	}) || null;
 }

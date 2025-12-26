@@ -29,6 +29,14 @@
       "category": "shopping"
     },
     {
+      "id": "temuShop",
+      "name": "Temu商城",
+      "url": "https://www.temu.com/",
+      "icon": "temu.ico",
+      "color": "#25D366",
+      "category": "shopping"
+    },
+    {
       "id": "telegram",
       "name": "Telegram",
       "url": "https://web.telegram.org",

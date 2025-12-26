@@ -23,7 +23,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openDevTools: (tabId: string) => 
       ipcRenderer.invoke('tab:openDevTools', { tabId }),
     triggerFileUploadScan: (tabId: string, imagePaths?: string[]) => 
-      ipcRenderer.invoke('tab:triggerFileUploadScan', { tabId, imagePaths })
+      ipcRenderer.invoke('tab:triggerFileUploadScan', { tabId, imagePaths }),
+    downloadUrl: (tabId: string, url: string) => 
+      ipcRenderer.invoke('tab:downloadUrl', { tabId, url })
   },
 
   // 文件系统操作
@@ -38,12 +40,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('fs:findFiles', { pattern, sortBy, recursive }),
   },
 
-  // Temu 上传面板配置
-  temu: {
-    saveConfig: (tabId: string, config: any) => 
-      ipcRenderer.invoke('temu:saveConfig', { tabId, config }),
-    loadConfig: (tabId: string) => 
-      ipcRenderer.invoke('temu:loadConfig', { tabId }),
+  // 通用配置管理
+  config: {
+    save: (namespace: string, key: string, config: any) => 
+      ipcRenderer.invoke('config:save', { namespace, key, config }),
+    load: (namespace: string, key: string) => 
+      ipcRenderer.invoke('config:load', { namespace, key }),
   },
 
   // Browser 操作
@@ -82,8 +84,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // 网络拦截
-  network: {
-    addRule: (tabId: string, rule: any) => 
+      network: {
+        addRule: (tabId: string, rule: any) => 
       ipcRenderer.invoke('network:addRule', { tabId, rule }),
     removeRule: (tabId: string, ruleId: string) => 
       ipcRenderer.invoke('network:removeRule', { tabId, ruleId }),
@@ -95,6 +97,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     offIntercepted: (callback: (data: any) => void) => {
       ipcRenderer.removeListener('network:intercepted', callback);
     },
+  },
+  download: {
+    list: () => ipcRenderer.invoke('download:list'),
+    listByTab: (tabId: string) => ipcRenderer.invoke('download:listByTab', { tabId }),
+    cancel: (downloadId: string) => ipcRenderer.invoke('download:cancel', { downloadId }),
+    pause: (downloadId: string) => ipcRenderer.invoke('download:pause', { downloadId }),
+    resume: (downloadId: string) => ipcRenderer.invoke('download:resume', { downloadId }),
+    remove: (downloadId: string) => ipcRenderer.invoke('download:remove', { downloadId }),
   },
 
   // 事件监听
@@ -119,6 +129,7 @@ declare global {
         getMemoryUsage: (tabId: string) => Promise<any>;
         getCookies: (tabId: string, url?: string) => Promise<any[]>;
         executeScript: (tabId: string, code: string) => Promise<any>;
+        downloadUrl: (tabId: string, url: string) => Promise<boolean>;
       };
       browser: {
         navigate: (tabId: string, url: string) => Promise<boolean>;
@@ -145,9 +156,9 @@ declare global {
         readImageFiles: (directory: string) => Promise<string[]>;
         readImageAsBase64: (filePath: string) => Promise<string>;
       };
-      temu: {
-        saveConfig: (tabId: string, config: any) => Promise<{ success: boolean; error?: string }>;
-        loadConfig: (tabId: string) => Promise<{ success: boolean; config: any | null; error?: string }>;
+      config: {
+        save: (namespace: string, key: string, config: any) => Promise<{ success: boolean; error?: string }>;
+        load: (namespace: string, key: string) => Promise<{ success: boolean; config: any | null; error?: string }>;
       };
       network: {
         addRule: (tabId: string, rule: { id: string; pattern: string; enabled: boolean }) => Promise<{ success: boolean }>;
@@ -155,6 +166,14 @@ declare global {
         getRules: (tabId: string) => Promise<Array<{ id: string; pattern: string; enabled: boolean }>>;
         onIntercepted: (callback: (data: { tabId: string; data: { type: 'request' | 'response'; ruleId: string; url: string; method?: string; headers?: Record<string, string>; statusCode?: number; body?: string; timestamp: number } }) => void) => void;
         offIntercepted: (callback: (data: any) => void) => void;
+      };
+      download: {
+        list: () => Promise<Array<{ id: string; tabId: string; url: string; filename: string; savePath: string; totalBytes: number; receivedBytes: number; state: 'progressing' | 'completed' | 'cancelled' | 'interrupted'; startTime: number; speed: number; thumbnail?: string; mimeType?: string }>>;
+        listByTab: (tabId: string) => Promise<Array<{ id: string; tabId: string; url: string; filename: string; savePath: string; totalBytes: number; receivedBytes: number; state: 'progressing' | 'completed' | 'cancelled' | 'interrupted'; startTime: number; speed: number; thumbnail?: string; mimeType?: string }>>;
+        cancel: (downloadId: string) => Promise<boolean>;
+        pause: (downloadId: string) => Promise<boolean>;
+        resume: (downloadId: string) => Promise<boolean>;
+        remove: (downloadId: string) => Promise<boolean>;
       };
       on: (channel: string, callback: (...args: any[]) => void) => void;
       off: (channel: string, callback: (...args: any[]) => void) => void;

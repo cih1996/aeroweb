@@ -9,6 +9,7 @@
   import TabPropertiesModal from './components/TabPropertiesModal.svelte';
   import AIConfigModal from './components/AIConfigModal.svelte';
   import RightPanel from './components/RightPanel.svelte';
+  import DownloadListPanel from './components/panels/DownloadListPanel.svelte';
   import { onMount } from 'svelte';
   import { getAppById } from './utils/app-config';
   import { saveConfig, getAllConfigs, getConfigsByAppId, updateLastUsed } from './utils/browser-config-storage';
@@ -45,6 +46,12 @@
   
   // 右侧面板宽度（可拖拽调整）
   let rightPanelWidth = 400;
+  
+  // 是否显示下载列表视图
+  let showDownloadList = false;
+  // 保存切换到下载列表前的视图状态
+  let previousViewBeforeDownloadList: 'apps' | 'my-apps' | string | null = null;
+  let previousTabIdBeforeDownloadList: string | null = null;
   
   // 按应用分组的配置列表
   $: groupedConfigs = browserConfigs.reduce((acc: Record<string, BrowserConfig[]>, config) => {
@@ -293,6 +300,8 @@
     
     if (newView === 'apps' || newView === 'my-apps') {
       // 切换到应用中心或我的应用，隐藏所有 BrowserView
+      // 关闭下载列表视图
+      showDownloadList = false;
       await window.electronAPI.view.hideBrowser();
       activeView = newView;
       await loadTabs();
@@ -302,6 +311,8 @@
       }
     } else {
       // 切换到指定应用视图
+      // 关闭下载列表视图
+      showDownloadList = false;
       activeView = newView;
       await loadTabs();
       // 如果有该应用的激活 tab，显示它
@@ -337,6 +348,8 @@
     // 在侧边栏点击已打开的应用图标，切换到该应用的视图（不创建新的）
     const existingTabs = tabs.filter(t => t.appId === appId);
     if (existingTabs.length > 0) {
+      // 关闭下载列表视图
+      showDownloadList = false;
       // 切换到该应用视图
       activeView = appId;
       // 激活该应用的第一个 tab（如果有激活的则激活激活的，否则激活第一个）
@@ -355,6 +368,67 @@
       }
     }
   }
+
+  async function handleDownloadListToggle() {
+    const newState = !showDownloadList;
+    
+    if (newState) {
+      // 打开下载列表时，保存当前状态并隐藏浏览器
+      previousViewBeforeDownloadList = activeView;
+      previousTabIdBeforeDownloadList = activeTabId;
+      showDownloadList = true;
+      await window.electronAPI.view.hideBrowser();
+    } else {
+      // 关闭下载列表时，恢复之前的视图
+      showDownloadList = false;
+      await loadTabs(); // 重新加载 tabs 状态
+      
+      // 尝试恢复之前的 tab
+      if (previousTabIdBeforeDownloadList) {
+        const previousTab = tabs.find(t => t.id === previousTabIdBeforeDownloadList);
+        if (previousTab) {
+          // 如果之前的 tab 还存在，激活它
+          await activateTab(previousTab.id);
+          previousViewBeforeDownloadList = null;
+          previousTabIdBeforeDownloadList = null;
+          return;
+        }
+      }
+      
+      // 如果之前的 tab 不存在，尝试根据 previousView 恢复
+      if (previousViewBeforeDownloadList) {
+        if (previousViewBeforeDownloadList === 'apps' || previousViewBeforeDownloadList === 'my-apps') {
+          // 恢复到应用中心或我的应用
+          activeView = previousViewBeforeDownloadList;
+          await window.electronAPI.view.hideBrowser();
+        } else {
+          // 尝试找到该应用的 tab
+          const appTabs = tabs.filter(t => t.appId === previousViewBeforeDownloadList);
+          if (appTabs.length > 0) {
+            // 如果有该应用的 tab，激活第一个
+            activeView = previousViewBeforeDownloadList;
+            await activateTab(appTabs[0].id);
+          } else {
+            // 如果该应用没有 tab 了，切换到应用中心
+            activeView = 'apps';
+            await window.electronAPI.view.hideBrowser();
+          }
+        }
+        previousViewBeforeDownloadList = null;
+        previousTabIdBeforeDownloadList = null;
+      } else {
+        // 如果没有保存的状态，尝试找激活的 tab
+        const activeTab = tabs.find(t => t.active);
+        if (activeTab) {
+          await activateTab(activeTab.id);
+        } else {
+          // 没有激活的 tab，切换到应用中心
+          activeView = 'apps';
+          await window.electronAPI.view.hideBrowser();
+        }
+      }
+    }
+  }
 </script>
 
 <main>
@@ -367,6 +441,7 @@
       on:viewChange={handleViewChange}
       on:appClick={handleSidebarAppClick}
       on:openAIConfig={() => showAIConfigModal = true}
+      on:openDownloadList={handleDownloadListToggle}
     />
     
     <div class="main-content">
@@ -385,6 +460,11 @@
         <!-- 显示加载状态 -->
         <div class="browser-container">
           <LoadingOverlay appName={loadingAppName} />
+        </div>
+      {:else if showDownloadList}
+        <!-- 显示下载列表视图（优先级最高） -->
+        <div class="download-list-view">
+          <DownloadListPanel tabId={null} appId="" />
         </div>
       {:else if hasActiveTab}
         <!-- 有激活的 tab，显示浏览器内容区域（BrowserView 会显示在这里） -->
@@ -503,6 +583,14 @@
     display: flex;
     overflow: visible;
     position: relative;
+  }
+
+  .download-list-view {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+    background: rgba(26, 31, 58, 0.95);
   }
 
   .browser-container {

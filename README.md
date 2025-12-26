@@ -13,7 +13,6 @@ qiyi/
 │   │   │   └── windows/           # 窗口管理相关
 │   │   │       ├── tab-manager.ts        # 标签页管理
 │   │   │       ├── file-upload-interceptor.ts  # 文件上传拦截
-│   │   │       └── network-interceptor.ts      # 网络请求拦截
 │   │   ├── preload/               # 预加载脚本
 │   │   │   └── index.ts          # 预加载脚本入口
 │   │   ├── renderer/              # 渲染进程（前端）
@@ -105,8 +104,6 @@ Electron 桌面应用，包含三个主要进程：
 - **`index.ts`**: 应用入口，管理窗口生命周期
 - **`windows/tab-manager.ts`**: 标签页管理，创建和管理浏览器标签
 - **`windows/file-upload-interceptor.ts`**: 拦截文件上传请求
-- **`windows/network-interceptor.ts`**: 拦截网络请求
-
 #### 预加载脚本 (`preload/`)
 - **`index.ts`**: 在渲染进程和主进程之间建立安全的IPC通信桥梁
 

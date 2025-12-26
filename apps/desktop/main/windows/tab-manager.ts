@@ -1,10 +1,10 @@
-import { BrowserWindow, BrowserView, session } from 'electron';
-import { join } from 'path';
-import { readFileSync } from 'fs';
+import { BrowserWindow, BrowserView, session, dialog, app } from 'electron';
+import { join, basename, extname } from 'path';
+import { existsSync } from 'fs';
 import { BrowserService } from '@qiyi/browser-service';
 import type { Tab } from '@qiyi/shared';
-import { NetworkInterceptor, NetworkInterceptorRule } from './network-interceptor';
 import { FileUploadInterceptor } from './file-upload-interceptor';
+import { DownloadManager } from './download-manager';
 
 export class TabManager {
   private tabs: Map<string, Tab> = new Map();
@@ -17,22 +17,18 @@ export class TabManager {
   private rightPanelWidth: number = 400; // 右侧面板宽度
   // 文件上传拦截器
   private fileUploadInterceptors: Map<string, FileUploadInterceptor> = new Map();
-  // 网络拦截器
-  private networkInterceptors: Map<string, NetworkInterceptor> = new Map();
+  // 下载管理器
+  private downloadManager: DownloadManager;
 
-  constructor(mainWindow: BrowserWindow, browserService: BrowserService) {
+  constructor(mainWindow: BrowserWindow, browserService: BrowserService, downloadManager: DownloadManager) {
     this.mainWindow = mainWindow;
     this.browserService = browserService;
+    this.downloadManager = downloadManager;
   }
 
   async createTab(appId: string, url: string, configId?: string, configName?: string): Promise<Tab> {
-    const tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    console.log("创建tab",appId,configId)
-    // 为每个 tab 创建独立的 session partition，实现完全的环境隔离
-    // 如果提供了 configId，使用配置名称作为 partition 的一部分，确保相同配置使用相同缓存
-    // 如果没有 configId，使用 tabId 确保唯一性
-    // persist 表示持久化存储，每个 partition 都有独立的 cookies、localStorage、sessionStorage、缓存等
-    const partitionKey = configId ? `config_${configId}` : `tab_${tabId}`;
+    const tabId = `tab_${configId}`;
+    const partitionKey = `config_${configId}`;
     const partitionId = `persist:${partitionKey}`;
     const tabSession = session.fromPartition(partitionId);
     
@@ -53,20 +49,40 @@ export class TabManager {
       },
     });
     
-    // 拦截新窗口打开，改为在当前窗口中跳转
-    view.webContents.setWindowOpenHandler(({ url }) => {
-      console.log('[TabManager] 拦截新窗口打开请求，URL:', url);
-      // 使用 setTimeout 延迟加载，避免 ERR_ABORTED 错误
-      setTimeout(() => {
-        view.webContents.loadURL(url).catch((error) => {
-          // 忽略 ERR_ABORTED 错误（可能是页面自己取消的导航）
-          if (error.code !== 'ERR_ABORTED') {
-            console.error('[TabManager] 加载新 URL 失败:', error);
-          }
-        });
-      }, 0);
-      // 返回 { action: 'deny' } 阻止创建新窗口
-      return { action: 'deny' };
+    // 只拦截同一个顶级域名的新窗口打开，改为在当前窗口中跳转
+    const getTopLevelDomain = (inputUrl: string) => {
+      try {
+        const { hostname } = new URL(inputUrl);
+        // 提取主域名（如 seller.kuajingmaihuo.com -> kuajingmaihuo.com）
+        const parts = hostname.split('.').reverse();
+        if (parts.length >= 2) {
+          return parts[1] + '.' + parts[0];
+        }
+        return hostname;
+      } catch (e) {
+        return '';
+      }
+    };
+
+    const initialUrl = url;
+    const initialTld = getTopLevelDomain(initialUrl);
+
+    view.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
+      const targetTld = getTopLevelDomain(targetUrl);
+      if (initialTld && targetTld && initialTld === targetTld) {
+        console.log('[TabManager] 拦截同主域新窗口打开请求，URL:', targetUrl);
+        setTimeout(() => {
+          view.webContents.loadURL(targetUrl).catch((error) => {
+            if (error.code !== 'ERR_ABORTED') {
+              console.error('[TabManager] 加载新 URL 失败:', error);
+            }
+          });
+        }, 0);
+        return { action: 'deny' };
+      } else {
+        // 不同域名的弹窗允许单独打开
+        return { action: 'allow' };
+      }
     });
 
     // 初始化文件上传拦截器
@@ -76,13 +92,49 @@ export class TabManager {
       console.error('[TabManager] 初始化文件上传拦截器失败:', error);
     });
 
-    // 初始化网络拦截器
-    const networkInterceptor = new NetworkInterceptor(view.webContents, tabId, this.mainWindow.webContents);
-    this.networkInterceptors.set(tabId, networkInterceptor);
+    // 监听下载事件
+    // 不调用 preventDefault()，让 Electron 使用默认行为（弹出保存对话框）
+    // 这样可以确保下载能正常进行，用户也可以修改文件名
+    tabSession.on('will-download', (event, downloadItem, webContents) => {
+      const url = downloadItem.getURL();
+      const suggestedFilename = downloadItem.getFilename() || basename(url);
+      const mimeType = downloadItem.getMimeType();
+      const contentDisposition = downloadItem.getContentDisposition();
+      
+      // 不调用 preventDefault()，让 Electron 弹出保存对话框（第一版行为）
+      // 用户选择路径后，下载会自动开始
+      
+      // 监听下载进度，在下载真正开始后添加到下载管理器
+      // 使用 once 确保只添加一次
+      let addedToManager = false;
+      
+      downloadItem.on('updated', () => {
+        if (!addedToManager) {
+          try {
+            const savePath = downloadItem.getSavePath();
+            if (savePath) {
+              // 用户已选择保存路径，下载已开始
+              this.downloadManager.addDownload(tabId, downloadItem, url);
+              addedToManager = true;
+            }
+          } catch (error) {
+            // 如果 downloadItem 已被销毁，忽略错误
+          }
+        }
+      });
+      
+      // 如果下载项已经有保存路径（可能是之前设置的），立即添加到管理器
+      const existingSavePath = downloadItem.getSavePath();
+      if (existingSavePath) {
+        try {
+          this.downloadManager.addDownload(tabId, downloadItem, url);
+          addedToManager = true;
+        } catch (error) {
+          // 如果 downloadItem 已被销毁，等待 updated 事件
+        }
+      }
+    });
 
-    // 注意：BrowserView 的 webContents 不支持 before-input-event
-    // 这个事件只在主窗口的 webContents 上触发
-    // 所以刷新快捷键的拦截需要在主窗口处理（main/index.ts）
     
     // 设置视图位置和大小（为侧边栏和标题栏预留空间）
     this.updateViewBounds(view);
@@ -163,12 +215,6 @@ export class TabManager {
       this.fileUploadInterceptors.delete(tabId);
     }
 
-    // 清理网络拦截器
-    const networkInterceptor = this.networkInterceptors.get(tabId);
-    if (networkInterceptor) {
-      networkInterceptor.cleanup();
-      this.networkInterceptors.delete(tabId);
-    }
     
     if (view) {
       // 如果是当前激活的视图，先移除
@@ -543,36 +589,23 @@ export class TabManager {
   }
 
   /**
-   * 添加网络拦截规则
+   * 下载指定 URL 的文件
+   * 通过页面内的 JavaScript 触发下载，这样可以携带当前页面的 cookies 和 headers
    */
-  addNetworkInterceptorRule(tabId: string, rule: NetworkInterceptorRule): void {
-    const interceptor = this.networkInterceptors.get(tabId);
-    if (!interceptor) {
-      throw new Error(`Tab ${tabId} 的网络拦截器未初始化`);
+  async downloadUrl(tabId: string, url: string): Promise<boolean> {
+    const view = this.views.get(tabId);
+    if (!view) {
+      throw new Error(`Tab ${tabId} not found`);
     }
-    interceptor.addRule(rule);
+
+      try {
+        view.webContents.downloadURL(url);
+        return true;
+      } catch (fallbackError) {
+        throw fallbackError;
+      }
+ 
   }
 
-  /**
-   * 移除网络拦截规则
-   */
-  removeNetworkInterceptorRule(tabId: string, ruleId: string): void {
-    const interceptor = this.networkInterceptors.get(tabId);
-    if (!interceptor) {
-      throw new Error(`Tab ${tabId} 的网络拦截器未初始化`);
-    }
-    interceptor.removeRule(ruleId);
-  }
-
-  /**
-   * 获取所有网络拦截规则
-   */
-  getNetworkInterceptorRules(tabId: string): NetworkInterceptorRule[] {
-    const interceptor = this.networkInterceptors.get(tabId);
-    if (!interceptor) {
-      return [];
-    }
-    return interceptor.getRules();
-  }
 }
 

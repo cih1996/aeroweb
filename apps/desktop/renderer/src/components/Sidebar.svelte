@@ -5,7 +5,8 @@
   import AIIcon from './icons/AIIcon.svelte';
   import { getAppIconUrl, getApps } from '../utils/app-config';
   import type { AppConfig } from '../types/app-config';
-
+  import DownloadIcon from './icons/DownloadIcon.svelte';
+  
   export let activeView: 'apps' | 'my-apps' | string = 'apps'; // 'apps', 'my-apps' 或 appId
   export let tabs: any[] = [];
 
@@ -110,7 +111,11 @@
   {/if}
 
   <div class="sidebar-footer">
-    <button class="ai-button" on:click={() => dispatch('openAIConfig')}>
+    <button class="footer-button download-button" on:click={() => dispatch('openDownloadList')}>
+      <DownloadIcon />
+      <span>下载列表</span>
+    </button>
+    <button class="footer-button ai-button" on:click={() => dispatch('openAIConfig')}>
       <AIIcon />
       <span>AI 设置</span>
     </button>
@@ -315,9 +320,12 @@
   .sidebar-footer {
     padding: 16px 12px;
     border-top: 1px solid rgba(79, 172, 254, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 
-  .ai-button {
+  .footer-button {
     width: 100%;
     display: flex;
     align-items: center;
@@ -335,7 +343,7 @@
     overflow: hidden;
   }
 
-  .ai-button::before {
+  .footer-button::before {
     content: '';
     position: absolute;
     top: 0;
@@ -346,13 +354,22 @@
     transition: left 0.5s;
   }
 
-  .ai-button:hover::before {
+  .footer-button:hover::before {
     left: 100%;
   }
 
-  .ai-button:hover {
+  .footer-button:hover {
     box-shadow: 0 0 20px rgba(79, 172, 254, 0.4);
     transform: translateY(-1px);
   }
+
+  .button-icon {
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+ 
 </style>
 

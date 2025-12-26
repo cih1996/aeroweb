@@ -2,13 +2,13 @@ import { app, BrowserWindow, ipcMain, globalShortcut, dialog } from 'electron';
 import { join, dirname, basename, extname } from 'path';
 import { TabManager } from './windows/tab-manager';
 import { BrowserService } from '@qiyi/browser-service';
-import { session } from 'electron';
+import { DownloadManager } from './windows/download-manager';
 import { readdir, stat, readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
-import { glob } from 'glob';
 
 let mainWindow: BrowserWindow | null = null;
 let tabManager: TabManager | null = null;
+let downloadManager: DownloadManager | null = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -243,8 +243,11 @@ app.whenReady().then(() => {
 
   createWindow();
 
+  // 初始化 Download Manager（需要在 createWindow 之后）
+  downloadManager = new DownloadManager(mainWindow!);
+
   // 初始化 Tab Manager（需要在 createWindow 之后）
-  tabManager = new TabManager(mainWindow!, browserService);
+  tabManager = new TabManager(mainWindow!, browserService, downloadManager);
 
   // 注册全局快捷键拦截刷新（F5, Ctrl+R）
   // 这样无论焦点在哪里都能拦截
@@ -407,8 +410,8 @@ function setupIPC() {
     }
   });
 
+  // 动态更新右侧面板宽度
   ipcMain.handle('view:updateBounds', (_, { rightPanelWidth }: { rightPanelWidth: number }) => {
-    console.log('[IPC] view:updateBounds called, rightPanelWidth:', rightPanelWidth);
     if (tabManager) {
       tabManager.setRightPanelWidth(rightPanelWidth);
       tabManager.updateViewsBounds();
@@ -441,11 +444,7 @@ function setupIPC() {
   // 获取浏览器缓存路径
   ipcMain.handle('cache:getPath', (_, { configId, tabId }: { configId?: string; tabId?: string }) => {
     const userDataPath = app.getPath('userData');
-    
     if (configId) {
-      // 配置的缓存路径
-      // partition 名称格式：persist:config_${configId}
-      // 实际存储时会去掉 "persist:" 前缀，存储在 Partitions 目录下
       return join(userDataPath, 'Partitions', `config_${configId}`);
     } else if (tabId) {
       // 临时 tab 的缓存路径
@@ -491,6 +490,13 @@ function setupIPC() {
     throw new Error('TabManager not initialized');
   });
 
+  ipcMain.handle('tab:downloadUrl', async (_, { tabId, url }: { tabId: string; url: string }) => {
+    if (!tabManager) {
+      throw new Error('TabManager not initialized');
+    }
+    return await tabManager.downloadUrl(tabId, url);
+  });
+
   // 文件上传扫描 IPC
   ipcMain.handle('tab:triggerFileUploadScan', async (_, { tabId, imagePaths }: { tabId: string; imagePaths?: string[] }) => {
     if (!tabManager) {
@@ -499,28 +505,47 @@ function setupIPC() {
     return await tabManager.triggerFileUploadScan(tabId, imagePaths);
   });
 
-  // 网络拦截规则 IPC
-  ipcMain.handle('network:addRule', async (_, { tabId, rule }: { tabId: string; rule: any }) => {
-    if (!tabManager) {
-      throw new Error('TabManager not initialized');
+  // 下载相关 IPC
+  ipcMain.handle('download:list', async () => {
+    if (!downloadManager) {
+      return [];
     }
-    tabManager.addNetworkInterceptorRule(tabId, rule);
-    return { success: true };
+    return downloadManager.getAllDownloads();
   });
 
-  ipcMain.handle('network:removeRule', async (_, { tabId, ruleId }: { tabId: string; ruleId: string }) => {
-    if (!tabManager) {
-      throw new Error('TabManager not initialized');
+  ipcMain.handle('download:listByTab', async (_, { tabId }: { tabId: string }) => {
+    if (!downloadManager) {
+      return [];
     }
-    tabManager.removeNetworkInterceptorRule(tabId, ruleId);
-    return { success: true };
+    return downloadManager.getDownloadsByTabId(tabId);
   });
 
-  ipcMain.handle('network:getRules', async (_, { tabId }: { tabId: string }) => {
-    if (!tabManager) {
-      throw new Error('TabManager not initialized');
+  ipcMain.handle('download:cancel', async (_, { downloadId }: { downloadId: string }) => {
+    if (!downloadManager) {
+      return false;
     }
-    return tabManager.getNetworkInterceptorRules(tabId);
+    return downloadManager.cancelDownload(downloadId);
+  });
+
+  ipcMain.handle('download:pause', async (_, { downloadId }: { downloadId: string }) => {
+    if (!downloadManager) {
+      return false;
+    }
+    return downloadManager.pauseDownload(downloadId);
+  });
+
+  ipcMain.handle('download:resume', async (_, { downloadId }: { downloadId: string }) => {
+    if (!downloadManager) {
+      return false;
+    }
+    return downloadManager.resumeDownload(downloadId);
+  });
+
+  ipcMain.handle('download:remove', async (_, { downloadId }: { downloadId: string }) => {
+    if (!downloadManager) {
+      return false;
+    }
+    return downloadManager.removeDownload(downloadId);
   });
 
   // 选择目录 IPC
@@ -542,7 +567,7 @@ function setupIPC() {
     try {
       const files = await readdir(directory);
       const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
-      const imageFiles: string[] = [];
+      const imageFilesWithCtime: { filePath: string; ctimeMs: number }[] = [];
       
       for (const file of files) {
         const ext = file.toLowerCase().substring(file.lastIndexOf('.'));
@@ -550,15 +575,16 @@ function setupIPC() {
           const filePath = join(directory, file);
           const stats = await stat(filePath);
           if (stats.isFile()) {
-            imageFiles.push(filePath);
+            imageFilesWithCtime.push({ filePath, ctimeMs: stats.ctimeMs });
           }
         }
       }
       
-      // 按文件名排序
-      imageFiles.sort();
-      
-      return imageFiles;
+      // 按文件创建时间排序, 旧的在前, 新的在后
+      imageFilesWithCtime.sort((a, b) => a.ctimeMs - b.ctimeMs);
+
+      // 只返回文件路径数组
+      return imageFilesWithCtime.map(item => item.filePath);
     } catch (error: any) {
       throw new Error(`读取目录失败: ${error.message}`);
     }
@@ -584,32 +610,32 @@ function setupIPC() {
     }
   });
 
-  // 保存 Temu 上传面板配置 IPC
-  ipcMain.handle('temu:saveConfig', async (_, { tabId, config }: { tabId: string; config: any }) => {
+  // 保存通用配置 IPC
+  ipcMain.handle('config:save', async (_, { namespace, key, config }: { namespace: string; key: string; config: any }) => {
     try {
       const userDataPath = app.getPath('userData');
-      const configDir = join(userDataPath, 'temu-upload-configs');
+      const configDir = join(userDataPath, 'panel-configs', namespace);
       
       // 确保目录存在
       if (!existsSync(configDir)) {
         await mkdir(configDir, { recursive: true });
       }
       
-      const configPath = join(configDir, `${tabId}.json`);
+      const configPath = join(configDir, `${key}.json`);
       await writeFile(configPath, JSON.stringify(config, null, 2), 'utf-8');
-      
+      console.log("[IPC] 保存配置成功,存储路径:",configPath)
       return { success: true };
     } catch (error: any) {
-      console.error('[IPC] 保存 Temu 配置失败:', error);
+      console.error(`[IPC] 保存配置失败 (${namespace}/${key}):`, error);
       return { success: false, error: error.message };
     }
   });
 
-  // 读取 Temu 上传面板配置 IPC
-  ipcMain.handle('temu:loadConfig', async (_, { tabId }: { tabId: string }) => {
+  // 读取通用配置 IPC
+  ipcMain.handle('config:load', async (_, { namespace, key }: { namespace: string; key: string }) => {
     try {
       const userDataPath = app.getPath('userData');
-      const configPath = join(userDataPath, 'temu-upload-configs', `${tabId}.json`);
+      const configPath = join(userDataPath, 'panel-configs', namespace, `${key}.json`);
       
       if (!existsSync(configPath)) {
         return { success: false, config: null };
@@ -620,7 +646,7 @@ function setupIPC() {
       
       return { success: true, config };
     } catch (error: any) {
-      console.error('[IPC] 读取 Temu 配置失败:', error);
+      console.error(`[IPC] 读取配置失败 (${namespace}/${key}):`, error);
       return { success: false, config: null, error: error.message };
     }
   });

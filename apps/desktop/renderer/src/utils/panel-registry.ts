@@ -6,6 +6,7 @@ import type { PanelConfig, PanelRegistry } from '../types/panel';
 import JSEditorPanel from '../components/panels/JSEditorPanel.svelte';
 import TemuUploadPanel from '../components/panels/TemuUploadPanel.svelte';
 import AIChatPanel from '../components/panels/AIChatPanel.svelte';
+import DownloadListPanel from '../components/panels/DownloadListPanel.svelte';
 
 // 注册所有可用的面板
 export const panelRegistry: PanelRegistry = {
@@ -28,6 +29,13 @@ export const panelRegistry: PanelRegistry = {
     id: 'ai-chat',
     name: 'AI 对话',
     component: AIChatPanel,
+    // 不指定 appIds，表示所有应用都可以使用
+  },
+  // 下载列表面板
+  'download-list': {
+    id: 'download-list',
+    name: '下载列表',
+    component: DownloadListPanel,
     // 不指定 appIds，表示所有应用都可以使用
   },
 };

@@ -5,6 +5,7 @@
 
 import * as commonActions from './common-actions';
 import * as douyinActions from './douyin-actions';
+import * as temuActions from './temu-actions';
 
 // Action注册表类型
 type ActionModule = {
@@ -39,6 +40,11 @@ const appActionRegistry: { [appId: string]: ActionModule } = {
     getComments: douyinActions.getComments,
     sendComment: douyinActions.sendComment,
     getCurrentInfo: douyinActions.getCurrentInfo,
+  },
+  temu: {
+    searchImages: temuActions.searchImages,
+    fillProduct: temuActions.fillProduct,
+    clickUploadImage: temuActions.clickUploadImage,
   },
 };
 

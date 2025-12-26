@@ -59,29 +59,27 @@
   };
   
   // findFormControlFiber 函数
-  window.__polyAppsCommon.findFormControlFiber = function(el, maxDepth = 25) {
+  window.__polyAppsCommon.findFormControlFiber = function(el) {
     let f = window.__polyAppsCommon.getReactFiber(el);
-    let depth = 0;
-  
-    while (f && depth++ < maxDepth) {
+    // 优先循环 f.return 查找function
+    while (f) {
       const p = f.memoizedProps;
-  
-      if (p && typeof p === "object") {
-        const writable = window.__polyAppsCommon.hasWritableBehavior(p);
-        const valueLike = window.__polyAppsCommon.hasValueLike(p);
-  
-        if (writable || valueLike) {
-          return {
-            fiber: f,
-            props: p,
-            depth
-          };
-        }
+      if (!p) { f = f.return; continue;}
+      const hasWritable = typeof p.onChange === "function" || typeof p.onSelect === "function";
+      const hasValueLike = "value" in p || "checked" in p || "selected" in p || Array.isArray(p.options);
+      if (hasWritable && hasValueLike) {
+        return { fiber: f, props: p };
       }
       f = f.return;
     }
+    // 如果没找到 function，回到最初的 object
+    f = window.__polyAppsCommon.getReactFiber(el);
+    if (f && typeof f.memoizedProps === "object" && f.memoizedProps !== null) {
+      return { fiber: f, props: f.memoizedProps };
+    }
     return null;
   };
+  
   
   // buildStablePrimaryKey 函数
   window.__polyAppsCommon.buildStablePrimaryKey = function({ section, type, semantic }) {
@@ -188,14 +186,15 @@
   // scanStableFields 函数
   window.__polyAppsCommon.scanStableFields = function(selectStr,parentEl) {
     const fields = [];
-  
+    if(!parentEl){
+      parentEl = document;
+    }
     parentEl.querySelectorAll(selectStr).forEach(el => {
       const found = window.__polyAppsCommon.findFormControlFiber(el);
       if (!found) return;
       
-      const { fiber, props } = found;
+      const { props } = found;
       const section = window.__polyAppsCommon.detectSection(el);
-      const fiberPath = window.__polyAppsCommon.getFiberPath(fiber);
       const type = props.options ? "select" : "input";
   
       const fingerprint = {
@@ -232,3 +231,131 @@
     el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   };
   
+
+/**
+ * 一次性拦截指定 URL 的 Response.json，支持 await，同步返回结果，支持多个URL（数组模糊匹配）。
+ * @param {string|RegExp|Array<string|RegExp>} matchUrl - 要匹配拦截的 URL（字符串、正则或其数组）
+ * @param {number} timeout - 超时时间（毫秒），默认 5000
+ * @returns {Promise<Array<{ match: string|RegExp, url: string, data: any }>>} - 拦截到的响应数据数组，包含匹配配置与响应
+ *
+ * 用法示例:
+ *   await window.__polyAppsCommon.interceptResponseOnce(['/api/one', /api\/two/], 5000);
+ *
+ * 注意：超时只 resolve 已拦截到的数据数组（未全部命中也不报错，不 reject）。
+ */
+window.__polyAppsCommon.interceptResponseOnce = async function(matchUrl, timeout = 5000) {
+  return new Promise((resolve) => {
+    let timer = null;
+    let matchFns = [];
+    let urlKeys = [];
+    let isArrayMode = Array.isArray(matchUrl);
+
+    // 参数归一化
+    if (isArrayMode) {
+      if (matchUrl.length === 0) {
+        resolve([]);
+        return;
+      }
+      matchUrl.forEach((item) => {
+        if (typeof item === 'string') {
+          matchFns.push(url => url.includes(item));
+          urlKeys.push(item);
+        } else if (item instanceof RegExp) {
+          matchFns.push(url => item.test(url));
+          urlKeys.push(item);
+        } else {
+          resolve([]);
+          return;
+        }
+      });
+    } else if (typeof matchUrl === 'string') {
+      matchFns = [url => url.includes(matchUrl)];
+      urlKeys = [matchUrl];
+      isArrayMode = false;
+    } else if (matchUrl instanceof RegExp) {
+      matchFns = [url => matchUrl.test(url)];
+      urlKeys = [matchUrl];
+      isArrayMode = false;
+    } else {
+      resolve([]);
+      return;
+    }
+
+    // 标记，避免重复 hook
+    const responseProto = Response.prototype;
+    if (!responseProto.__polyAppsOriginJson) {
+      responseProto.__polyAppsOriginJson = responseProto.json;
+    }
+    if (!window.__polyAppsResponseInterceptorActiveCount) {
+      window.__polyAppsResponseInterceptorActiveCount = 0;
+    }
+    window.__polyAppsResponseInterceptorActiveCount++;
+
+    if (!window.__polyAppsResponseInterceptorInjected) {
+      responseProto.json = function() {
+        return responseProto.__polyAppsOriginJson.apply(this, arguments).then(data => {
+          try {
+            const url = this.url || '';
+            if (window.__polyAppsInterceptResponseOnceHandlers && window.__polyAppsInterceptResponseOnceHandlers.length > 0) {
+              window.__polyAppsInterceptResponseOnceHandlers.forEach(handler => handler(url, data));
+            }
+          } catch (e) {
+            console.error('[NetworkInterceptor] 处理响应数据时出错:', e);
+          }
+          return data;
+        });
+      };
+      window.__polyAppsResponseInterceptorInjected = true;
+      window.__polyAppsInterceptResponseOnceHandlers = [];
+    }
+
+    // 收集所有已命中的数据
+    let capturedResults = [];
+    let capturedIndexSet = new Set();
+
+    // handler
+    const handler = (url, data) => {
+      for (let i = 0; i < matchFns.length; i++) {
+        if (!capturedIndexSet.has(i) && matchFns[i](url)) {
+          capturedResults.push({
+            match: urlKeys[i],
+            url,
+            data
+          });
+          capturedIndexSet.add(i);
+        }
+      }
+      // 如果全部都捕获到，直接返回
+      if (capturedIndexSet.size === matchFns.length) {
+        cleanup();
+        resolve(capturedResults);
+      }
+    };
+    window.__polyAppsInterceptResponseOnceHandlers.push(handler);
+
+    // 超时保护
+    timer = setTimeout(() => {
+      cleanup();
+      // 只返回已拦截到的数据（顺序不保证）
+      resolve(capturedResults);
+    }, timeout);
+
+    // 恢复和清理 hook
+    function cleanup() {
+      clearTimeout(timer);
+      const idx = window.__polyAppsInterceptResponseOnceHandlers.indexOf(handler);
+      if (idx > -1) {
+        window.__polyAppsInterceptResponseOnceHandlers.splice(idx, 1);
+      }
+      window.__polyAppsResponseInterceptorActiveCount--;
+      if (window.__polyAppsResponseInterceptorActiveCount <= 0) {
+        if (responseProto.__polyAppsOriginJson) {
+          responseProto.json = responseProto.__polyAppsOriginJson;
+        }
+        window.__polyAppsInterceptResponseOnceHandlers = [];
+        window.__polyAppsResponseInterceptorInjected = false;
+        window.__polyAppsResponseInterceptorActiveCount = 0;
+      }
+    }
+  });
+}
