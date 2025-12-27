@@ -348,6 +348,11 @@ export class TabManager {
    * 更新单个视图的边界（用于窗口大小变化时调用）
    */
   private updateViewBounds(view: BrowserView) {
+    // 检查 mainWindow 是否已被销毁
+    if (this.mainWindow.isDestroyed()) {
+      return;
+    }
+    
     // 使用 getContentBounds() 而不是 getBounds()，这样可以获取实际内容区域的大小
     // 避免在最大化时因为窗口边框导致的偏移问题
     const bounds = this.mainWindow.getContentBounds();
@@ -362,18 +367,28 @@ export class TabManager {
     // 确保宽度不为负数
     const width = Math.max(0, bounds.width - sidebarWidth - this.rightPanelWidth);
     
-    view.setBounds({
-      x: sidebarWidth,
-      y: topOffset,
-      width: width,
-      height: bounds.height - topOffset,
-    });
+    try {
+      view.setBounds({
+        x: sidebarWidth,
+        y: topOffset,
+        width: width,
+        height: bounds.height - topOffset,
+      });
+    } catch (error) {
+      // 如果 view 已被销毁，忽略错误
+      console.warn('[TabManager] 更新视图边界失败（视图可能已被销毁）:', error);
+    }
   }
 
   /**
    * 更新所有视图的边界（窗口大小变化时调用）
    */
   updateViewsBounds() {
+    // 检查 mainWindow 是否已被销毁
+    if (this.mainWindow.isDestroyed()) {
+      return;
+    }
+    
     // 使用 getContentBounds() 而不是 getBounds()，这样可以获取实际内容区域的大小
     // 避免在最大化时因为窗口边框导致的偏移问题
     const bounds = this.mainWindow.getContentBounds();
@@ -388,14 +403,38 @@ export class TabManager {
     // 确保宽度不为负数
     const width = Math.max(0, bounds.width - sidebarWidth - this.rightPanelWidth);
     
-    this.views.forEach((view) => {
-      view.setBounds({
-        x: sidebarWidth,
-        y: topOffset,
-        width: width,
-        height: bounds.height - topOffset,
-      });
+    // 遍历 views 时，检查每个 view 是否仍然有效
+    const viewsToRemove: string[] = [];
+    this.views.forEach((view, tabId) => {
+      try {
+        // 检查 view 的 webContents 是否已被销毁
+        if (view.webContents.isDestroyed()) {
+          viewsToRemove.push(tabId);
+          return;
+        }
+        
+        view.setBounds({
+          x: sidebarWidth,
+          y: topOffset,
+          width: width,
+          height: bounds.height - topOffset,
+        });
+      } catch (error) {
+        // 如果 view 已被销毁，记录并标记为需要清理
+        console.warn(`[TabManager] 更新视图边界失败 (tabId: ${tabId}):`, error);
+        viewsToRemove.push(tabId);
+      }
     });
+    
+    // 清理已销毁的 views
+    if (viewsToRemove.length > 0) {
+      viewsToRemove.forEach((tabId) => {
+        console.log(`[TabManager] 清理已销毁的视图 (tabId: ${tabId})`);
+        this.views.delete(tabId);
+        this.tabs.delete(tabId);
+        this.sessions.delete(tabId);
+      });
+    }
   }
 
   /**

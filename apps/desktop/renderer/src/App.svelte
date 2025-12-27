@@ -11,7 +11,7 @@
   import RightPanel from './components/RightPanel.svelte';
   import DownloadListPanel from './components/panels/DownloadListPanel.svelte';
   import { onMount } from 'svelte';
-  import { getAppById } from './utils/app-config';
+  import { getAppById } from './utils/app-storage';
   import { saveConfig, getAllConfigs, getConfigsByAppId, updateLastUsed } from './utils/browser-config-storage';
   import type { BrowserConfig } from './types/browser-config';
   import { loadAIConfig, saveAIConfig, getCurrentProvider, setCurrentProvider } from './services/ai';

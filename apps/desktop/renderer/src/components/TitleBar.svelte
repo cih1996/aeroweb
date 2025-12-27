@@ -3,8 +3,15 @@
   import MaximizeIcon from './icons/MaximizeIcon.svelte';
   import CloseIcon from './icons/CloseIcon.svelte';
   import RestoreIcon from './icons/RestoreIcon.svelte';
+  import { onMount } from 'svelte';
 
   let isMaximized = false;
+  let isMac = false;
+
+  onMount(() => {
+    // 检测是否为 Mac 系统
+    isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  });
 
   async function handleMinimize() {
     await window.electronAPI.window.minimize();
@@ -20,27 +27,29 @@
   }
 </script>
 
-<div class="title-bar" data-tauri-drag-region>
+<div class="title-bar" data-tauri-drag-region class:mac={isMac}>
   <div class="title-bar-left">
     <img src="./logo.svg" alt="奇易聚合浏览AI+" class="title-bar-logo" />
     <div class="app-name">奇易聚合浏览AI+</div>
   </div>
   
-  <div class="title-bar-right">
-    <button class="title-bar-button" on:click={handleMinimize} title="最小化">
-      <MinimizeIcon />
-    </button>
-    <button class="title-bar-button" on:click={handleMaximize} title={isMaximized ? '还原' : '最大化'}>
-      {#if isMaximized}
-        <RestoreIcon />
-      {:else}
-        <MaximizeIcon />
-      {/if}
-    </button>
-    <button class="title-bar-button close" on:click={handleClose} title="关闭">
-      <CloseIcon />
-    </button>
-  </div>
+  {#if !isMac}
+    <div class="title-bar-right">
+      <button class="title-bar-button" on:click={handleMinimize} title="最小化">
+        <MinimizeIcon />
+      </button>
+      <button class="title-bar-button" on:click={handleMaximize} title={isMaximized ? '还原' : '最大化'}>
+        {#if isMaximized}
+          <RestoreIcon />
+        {:else}
+          <MaximizeIcon />
+        {/if}
+      </button>
+      <button class="title-bar-button close" on:click={handleClose} title="关闭">
+        <CloseIcon />
+      </button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -58,10 +67,19 @@
     z-index: 1000;
   }
 
+  .title-bar.mac {
+    justify-content: center;
+  }
+
   .title-bar-left {
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+
+  .title-bar.mac .title-bar-left {
+    justify-content: center;
+    width: 100%;
   }
 
   .title-bar-logo {
@@ -112,9 +130,6 @@
     color: white;
   }
 
-  .title-bar-button svg {
-    width: 12px;
-    height: 12px;
-  }
+
 </style>
 

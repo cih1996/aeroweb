@@ -199,11 +199,12 @@ function createWindow() {
   // 监听窗口大小变化，更新 BrowserView 位置
   mainWindow.on('resize', () => {
     // tabManager 会在 app.whenReady 中初始化
-    if (tabManager) {
+    if (tabManager && mainWindow && !mainWindow.isDestroyed()) {
       // 使用 setTimeout 延迟更新，确保窗口大小已经完成变化
       const manager = tabManager; // 保存引用
+      const window = mainWindow; // 保存窗口引用
       setTimeout(() => {
-        if (manager) {
+        if (manager && window && !window.isDestroyed()) {
           manager.updateViewsBounds();
         }
       }, 0);
@@ -212,10 +213,11 @@ function createWindow() {
 
   // 监听窗口最大化/还原事件，延迟更新以确保边界计算正确
   mainWindow.on('maximize', () => {
-    if (tabManager) {
+    if (tabManager && mainWindow && !mainWindow.isDestroyed()) {
       const manager = tabManager; // 保存引用
+      const window = mainWindow; // 保存窗口引用
       setTimeout(() => {
-        if (manager) {
+        if (manager && window && !window.isDestroyed()) {
           manager.updateViewsBounds();
         }
       }, 100);
@@ -223,10 +225,11 @@ function createWindow() {
   });
 
   mainWindow.on('unmaximize', () => {
-    if (tabManager) {
+    if (tabManager && mainWindow && !mainWindow.isDestroyed()) {
       const manager = tabManager; // 保存引用
+      const window = mainWindow; // 保存窗口引用
       setTimeout(() => {
-        if (manager) {
+        if (manager && window && !window.isDestroyed()) {
           manager.updateViewsBounds();
         }
       }, 100);
@@ -607,6 +610,49 @@ function setupIPC() {
       return `data:${mimeType};base64,${base64}`;
     } catch (error: any) {
       throw new Error(`读取图片失败: ${error.message}`);
+    }
+  });
+
+  // 保存应用图标到本地 IPC
+  ipcMain.handle('fs:saveAppIcon', async (_, { appId, base64Data }: { appId: string; base64Data: string }) => {
+    try {
+      const userDataPath = app.getPath('userData');
+      const iconsDir = join(userDataPath, 'app-icons');
+      
+      // 确保图标目录存在
+      if (!existsSync(iconsDir)) {
+        await mkdir(iconsDir, { recursive: true });
+      }
+      
+      // 解析 base64 数据 - 支持 svg+xml 等复杂的 MIME 类型
+      const matches = base64Data.match(/^data:image\/([^;]+);base64,(.+)$/);
+      if (!matches) {
+        throw new Error('无效的 base64 图片数据');
+      }
+      
+      let imageType = matches[1];
+      const base64Content = matches[2];
+      const buffer = Buffer.from(base64Content, 'base64');
+      
+      // 处理特殊的 MIME 类型
+      if (imageType === 'svg+xml') {
+        imageType = 'svg';
+      } else if (imageType === 'x-icon') {
+        imageType = 'ico';
+      }
+      
+      // 生成图标文件名
+      const iconFileName = `${appId}.${imageType}`;
+      const iconPath = join(iconsDir, iconFileName);
+      
+      // 保存文件
+      await writeFile(iconPath, buffer);
+      
+      console.log('[IPC] 保存应用图标成功:', iconPath);
+      return { success: true, iconPath };
+    } catch (error: any) {
+      console.error('[IPC] 保存应用图标失败:', error);
+      return { success: false, error: error.message };
     }
   });
 

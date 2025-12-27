@@ -111,9 +111,6 @@ function douyin_getCurrentAwemeInfo() {
 }
 
 
-
-  
-
 // 获取评论区信息 (pageCount=翻页次数,0则不翻页,提供参数后会先翻页在一次性获取多条评论)
 async function douyin_getComments(pageCout = 0){
 	function findChildByText(parent, text) {
@@ -194,7 +191,7 @@ async function douyin_getComments(pageCout = 0){
 // 发送评论 (index=指定回复索引)
 async function pasteIntoDraft(text,index = -1) {
 
-	if(index != -1){
+	if(index !== -1){
 		if(index >= window.__douyin_comments.length){
 			return {"success":false,"msg":"指定索引超出评论范围"}
 		}

@@ -38,6 +38,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('fs:readImageAsBase64', { filePath }),
     findFiles: (pattern: string, sortBy?: 'default' | 'ascii' | 'ctime' | 'mtime', recursive?: boolean) => 
       ipcRenderer.invoke('fs:findFiles', { pattern, sortBy, recursive }),
+    saveAppIcon: (appId: string, base64Data: string) =>
+      ipcRenderer.invoke('fs:saveAppIcon', { appId, base64Data }),
   },
 
   // 通用配置管理
@@ -155,6 +157,7 @@ declare global {
         selectDirectory: () => Promise<string | null>;
         readImageFiles: (directory: string) => Promise<string[]>;
         readImageAsBase64: (filePath: string) => Promise<string>;
+        saveAppIcon: (appId: string, base64Data: string) => Promise<{ success: boolean; iconPath?: string; error?: string }>;
       };
       config: {
         save: (namespace: string, key: string, config: any) => Promise<{ success: boolean; error?: string }>;

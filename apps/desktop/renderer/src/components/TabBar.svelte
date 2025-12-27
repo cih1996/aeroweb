@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { getAppById, getAppIconUrl } from '../utils/app-config';
+  import { getAppById, getAllApps } from '../utils/app-storage';
   import type { AppConfig } from '../types/app-config';
 
   export let tabs: any[] = [];
@@ -15,16 +15,11 @@
   let showContextMenu = false;
 
   onMount(async () => {
-    const { getApps } = await import('../utils/app-config');
-    appConfigs = await getApps();
+    appConfigs = getAllApps();
   });
 
   function getAppConfig(appId: string): AppConfig | undefined {
     return appConfigs.find(app => app.id === appId);
-  }
-
-  function getIconUrl(iconFileName: string): string {
-    return getAppIconUrl(iconFileName);
   }
 
   function handleClose(tabId: string, event: MouseEvent) {
@@ -102,7 +97,7 @@
     >
       {#if appConfig?.icon}
         <img 
-          src={getIconUrl(appConfig.icon)} 
+          src={appConfig.icon} 
           alt={appConfig.name}
           class="tab-icon"
           on:error={(e) => {

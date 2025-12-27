@@ -3,7 +3,7 @@
   import HomeIcon from './icons/HomeIcon.svelte';
   import MyAppsIcon from './icons/MyAppsIcon.svelte';
   import AIIcon from './icons/AIIcon.svelte';
-  import { getAppIconUrl, getApps } from '../utils/app-config';
+  import { getAllApps } from '../utils/app-storage';
   import type { AppConfig } from '../types/app-config';
   import DownloadIcon from './icons/DownloadIcon.svelte';
   
@@ -27,7 +27,7 @@
   $: openedAppIds = Object.keys(appGroups);
 
   onMount(async () => {
-    appConfigs = await getApps();
+    appConfigs = getAllApps();
   });
 
   function handleViewChange(view: 'apps' | string) {
@@ -92,7 +92,7 @@
           >
             {#if appConfig?.icon}
               <img 
-                src={getAppIconUrl(appConfig.icon)} 
+                src={appConfig.icon} 
                 alt={appConfig.name}
                 class="app-item-icon"
               />
