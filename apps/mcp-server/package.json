@@ -1,0 +1,12 @@
+{
+  "name": "@qiyi/mcp-server",
+  "version": "1.0.0",
+  "description": "PolyWebsAI MCP Server - 为 AI 提供浏览器控制能力",
+  "main": "dist/index.js",
+  "bin": { "polyweb-mcp": "dist/index.js" },
+  "scripts": { "build": "tsc", "start": "node dist/index.js", "clean": "rm -rf dist" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": { "@types/node": "^20.0.0", "typescript": "^5.3.0" }
+}
