@@ -3,6 +3,9 @@
  */
 export type AppId = 'whatsapp' | 'telegram' | 'x' | 'tiktok' | string;
 
+// 导出浏览器核心能力接口
+export * from './browser-core';
+
 export interface Tab {
   id: string;
   appId: AppId;
