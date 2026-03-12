@@ -3,12 +3,14 @@ import { join, dirname, basename, extname } from 'path';
 import { TabManager } from './windows/tab-manager';
 import { BrowserService } from '@qiyi/browser-service';
 import { DownloadManager } from './windows/download-manager';
+import { getAICallbackServer } from './ai-callback-server';
 import { readdir, stat, readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 
 let mainWindow: BrowserWindow | null = null;
 let tabManager: TabManager | null = null;
 let downloadManager: DownloadManager | null = null;
+let aiCallbackServer: ReturnType<typeof getAICallbackServer> | null = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -240,7 +242,7 @@ function createWindow() {
   // 注意：需要在 app.whenReady 之后注册，在窗口关闭时注销
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // 初始化 Browser Service
   const browserService = new BrowserService();
 
@@ -251,6 +253,16 @@ app.whenReady().then(() => {
 
   // 初始化 Tab Manager（需要在 createWindow 之后）
   tabManager = new TabManager(mainWindow!, browserService, downloadManager);
+
+  // 启动 AI 回调服务器
+  try {
+    aiCallbackServer = getAICallbackServer();
+    aiCallbackServer.setMainWindow(mainWindow!);
+    await aiCallbackServer.start();
+    console.log('[Main] AI 回调服务器已启动');
+  } catch (err) {
+    console.error('[Main] AI 回调服务器启动失败:', err);
+  }
 
   // 注册全局快捷键拦截刷新（F5, Ctrl+R）
   // 这样无论焦点在哪里都能拦截
@@ -308,10 +320,16 @@ app.whenReady().then(() => {
   });
 });
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
   // 注销所有全局快捷键
   globalShortcut.unregisterAll();
   console.log('[Main] 已注销所有全局快捷键');
+  
+  // 停止 AI 回调服务器
+  if (aiCallbackServer) {
+    await aiCallbackServer.stop();
+    console.log('[Main] AI 回调服务器已停止');
+  }
   
   if (process.platform !== 'darwin') {
     app.quit();
@@ -442,6 +460,14 @@ function setupIPC() {
     if (mainWindow) {
       mainWindow.close();
     }
+  });
+
+  // AI Agent 相关 IPC
+  ipcMain.handle('ai:getCallbackUrl', () => {
+    if (aiCallbackServer) {
+      return aiCallbackServer.getCallbackUrl();
+    }
+    return 'http://localhost:5022';
   });
 
   // 获取浏览器缓存路径

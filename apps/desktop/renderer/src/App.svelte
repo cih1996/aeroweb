@@ -16,6 +16,7 @@
   import type { BrowserConfig } from './types/browser-config';
   import { loadAIConfig, saveAIConfig, getCurrentProvider, setCurrentProvider } from './services/ai';
   import type { AIConfig } from './services/ai';
+  import { initAIAgentSystem } from './services/ai-agent/init';
 
   let tabs: any[] = [];
   let activeTabId: string | null = null;
@@ -94,6 +95,9 @@
   $: hasActiveTab = activeView !== 'apps' && activeView !== 'my-apps' && appTabs.some(t => t.active) && !isLoading;
 
   onMount(async () => {
+    // 初始化 AI Agent 系统
+    initAIAgentSystem();
+    
     await loadTabs();
     browserConfigs = getAllConfigs();
     

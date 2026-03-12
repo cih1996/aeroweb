@@ -1,21 +1,15 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import * as douyinActions from './actions/douyin-actions';
-  
   export let tabId: string | null = null;
   export let appId: string = '';
 
+  let code: string = '// 在此输入 JavaScript 代码\nreturn document.title;';
   let result: any = null;
   let error: string | null = null;
   let executing = false;
   let executionTime = 0;
-  
-  // 发送评论的参数
-  let commentText: string = '';
-  let commentIndex: string = '-1';
 
-  // 执行抖音方法
-  async function executeDouyinMethod(methodName: string, ...args: any[]) {
+  // 执行 JavaScript 代码
+  async function executeCode() {
     if (!tabId) {
       error = '没有活动的标签页';
       return;
@@ -28,88 +22,14 @@
     const startTime = Date.now();
 
     try {
-      let method: any;
-      
-      // 根据方法名调用对应的函数
-      switch (methodName) {
-        case 'douyin_getCurrentAwemeInfo':
-          method = douyinActions.getCurrentAwemeInfo;
-          break;
-        case 'douyin_getVideoInfo':
-          method = douyinActions.getVideoInfo;
-          break;
-        case 'douyin_digg':
-          method = douyinActions.digg;
-          break;
-        case 'douyin_next':
-          method = douyinActions.next;
-          break;
-        case 'douyin_toJingXuan':
-          method = douyinActions.toJingXuan;
-          break;
-        case 'douyin_getComments':
-          method = douyinActions.getComments;
-          break;
-        case 'pasteIntoDraft':
-          method = douyinActions.sendComment;
-          break;
-        case 'douyin_getMyInfo':
-          method = douyinActions.getMyInfo;
-          break;
-        case 'douyin_getCurrentUserInfo':
-          method = douyinActions.getCurrentUserInfo;
-          break;
-        case 'douyin_getCurrentUserInfo2':
-          method = douyinActions.getCurrentUserInfo2;
-          break;
-        default:
-          throw new Error(`未知的方法: ${methodName}`);
-      }
-
-      result = await method(tabId, ...args);
+      // 通过 electronAPI 在标签页中执行代码
+      const execResult = await window.electronAPI.tab.executeScript(tabId, code);
+      result = execResult;
       executionTime = Date.now() - startTime;
       console.log('[JSEditorPanel] 执行结果:', result);
     } catch (err: any) {
       error = err.message || String(err);
       console.error('[JSEditorPanel] 执行错误:', err);
-    } finally {
-      executing = false;
-    }
-  }
-
-
-  // 执行下载视频
-  async function executeDownloadVideo() {
-    if (!tabId) {
-      error = '没有活动的标签页';
-      return;
-    }
-    executing = true;
-    error = null;
-    result = null;
-    try {
-      // 1. 获取当前视频详细信息
-      const awemeInfo = await douyinActions.getCurrentAwemeInfo(tabId);
-
-      // 2. 提取下载地址
-      let downloadUrl = null;
-      if (awemeInfo && awemeInfo.video && awemeInfo.video.download) {
-        downloadUrl = awemeInfo.video.download;
-      }
-
-      if (!downloadUrl) {
-        error = '未能获取视频下载链接';
-        console.log("[JSEditorPanel] 未能获取到下载结果",awemeInfo)
-        executing = false;
-        return;
-      }
-
-      // 3. 调用主进程接口进行下载
-      await window.electronAPI.tab.downloadUrl(tabId, downloadUrl);
-
-      result = { success: true, msg: '下载已开始', url: downloadUrl };
-    } catch (err: any) {
-      error = err.message || String(err);
     } finally {
       executing = false;
     }
@@ -129,24 +49,34 @@
   }
 
   async function openDevTools() {
-    if (!tabId) {
-      return;
-    }
-
+    if (!tabId) return;
     try {
       await window.electronAPI.tab.openDevTools(tabId);
     } catch (err: any) {
       error = err.message || String(err);
     }
   }
+
+  function clearCode() {
+    code = '';
+    result = null;
+    error = null;
+  }
 </script>
 
 <div class="js-editor-panel">
   <div class="panel-header">
-    <h3>抖音操作面板</h3>
+    <h3>JS 执行器</h3>
     <div class="panel-actions">
-      <button 
-        class="btn-debug" 
+      <button
+        class="btn-secondary"
+        on:click={clearCode}
+        title="清空代码"
+      >
+        清空
+      </button>
+      <button
+        class="btn-debug"
         on:click={openDevTools}
         disabled={!tabId}
         title="打开开发者工具"
@@ -157,130 +87,26 @@
   </div>
 
   <div class="panel-content">
-    <div class="buttons-section">
-      <div class="button-group">
-        <h4>视频操作</h4>
-        <div class="buttons-grid">
-          <button 
-            class="action-btn"
-            on:click={() => executeDouyinMethod('douyin_getVideoInfo')}
-            disabled={executing || !tabId}
-            title="获取当前视频信息"
-          >
-            获取视频信息
-          </button>
-          <button 
-          class="action-btn"
-          on:click={() => executeDouyinMethod('douyin_getCurrentAwemeInfo')}
-          disabled={executing || !tabId}
-          title="获取当前视频详细信息"
+    <div class="editor-section">
+      <textarea
+        class="code-editor"
+        bind:value={code}
+        placeholder="// 输入 JavaScript 代码..."
+        disabled={executing}
+        spellcheck="false"
+      ></textarea>
+      <div class="editor-actions">
+        <button
+          class="action-btn execute-btn"
+          on:click={executeCode}
+          disabled={executing || !tabId || !code.trim()}
         >
-          获取视频详细信息
+          {#if executing}
+            执行中...
+          {:else}
+            ▶ 执行
+          {/if}
         </button>
-
-
-        <button 
-        class="action-btn"
-        on:click={() => executeDownloadVideo()}
-        disabled={executing || !tabId}
-        title="下载当前视频"
-      >
-        下载视频
-      </button>
-
-
-          <button 
-            class="action-btn"
-            on:click={() => executeDouyinMethod('douyin_digg')}
-            disabled={executing || !tabId}
-            title="点赞当前视频"
-          >
-            点赞视频
-          </button>
-          <button 
-            class="action-btn"
-            on:click={() => executeDouyinMethod('douyin_next')}
-            disabled={executing || !tabId}
-            title="下一条视频"
-          >
-            下一条
-          </button>
-          <button 
-            class="action-btn"
-            on:click={() => executeDouyinMethod('douyin_toJingXuan')}
-            disabled={executing || !tabId}
-            title="前往视频精选区"
-          >
-            前往精选
-          </button>
-        </div>
-      </div>
-
-      <div class="button-group">
-        <h4>评论操作</h4>
-        <div class="buttons-grid">
-          <button 
-            class="action-btn"
-            on:click={() => executeDouyinMethod('douyin_getComments', 0)}
-            disabled={executing || !tabId}
-            title="获取评论区信息"
-          >
-            获取评论
-          </button>
-          <button 
-            class="action-btn"
-            on:click={() => executeDouyinMethod('douyin_getMyInfo')}
-            disabled={executing || !tabId}
-            title="获取个人资料"
-          >
-            获取个人资料
-          </button>
-          <button 
-            class="action-btn"
-            on:click={() => executeDouyinMethod('douyin_getCurrentUserInfo')}
-            disabled={executing || !tabId}
-            title="获取当前用户资料"
-          >
-            获取当前资料
-          </button>
-          <button 
-            class="action-btn"
-            on:click={() => executeDouyinMethod('douyin_getCurrentUserInfo2')}
-            disabled={executing || !tabId}
-            title="获取当前博主资料"
-          >
-            获取博主资料
-          </button>
-        </div>
-        <div class="input-group">
-          <label for="comment-text-input">发送评论</label>
-          <div class="input-row">
-            <input
-              id="comment-text-input"
-              type="text"
-              class="comment-input"
-              bind:value={commentText}
-              placeholder="输入评论内容"
-              disabled={executing || !tabId}
-            />
-            <input
-              id="comment-index-input"
-              type="number"
-              class="comment-index-input"
-              bind:value={commentIndex}
-              placeholder="回复索引(-1=不回复)"
-              disabled={executing || !tabId}
-            />
-            <button 
-              class="action-btn"
-              on:click={() => executeDouyinMethod('pasteIntoDraft', commentText, parseInt(commentIndex) || -1)}
-              disabled={executing || !tabId || !commentText.trim()}
-              title="发送评论"
-            >
-              发送
-            </button>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -307,7 +133,7 @@
         </div>
       {:else}
         <div class="empty-result">
-          <p>点击按钮执行操作，结果将显示在这里</p>
+          <p>输入代码并点击执行，结果将显示在这里</p>
         </div>
       {/if}
     </div>
@@ -320,10 +146,10 @@
     flex-direction: column;
     height: 100%;
     width: 100%;
-    min-height: 0; /* 重要：允许 flex 子元素缩小 */
+    min-height: 0;
     background: rgba(26, 31, 58, 0.95);
     border-left: 1px solid rgba(79, 172, 254, 0.2);
-    overflow: hidden; /* 防止整个面板溢出 */
+    overflow: hidden;
   }
 
   .panel-header {
@@ -350,6 +176,7 @@
     gap: 8px;
   }
 
+  .btn-secondary,
   .btn-debug {
     padding: 6px 12px;
     background: rgba(79, 172, 254, 0.2);
@@ -362,6 +189,7 @@
     transition: all 0.2s;
   }
 
+  .btn-secondary:hover,
   .btn-debug:hover:not(:disabled) {
     background: rgba(79, 172, 254, 0.3);
     border-color: rgba(79, 172, 254, 0.6);
@@ -380,51 +208,57 @@
     overflow: hidden;
   }
 
-  .buttons-section {
+  .editor-section {
     flex: 1;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
     padding: 16px;
-    gap: 24px;
-  }
-
-  .button-group {
-    display: flex;
-    flex-direction: column;
     gap: 12px;
+    min-height: 200px;
   }
 
-  .button-group h4 {
-    margin: 0;
+  .code-editor {
+    flex: 1;
+    padding: 12px;
+    background: rgba(10, 14, 39, 0.8);
+    border: 1px solid rgba(79, 172, 254, 0.2);
+    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: 'Consolas', 'Monaco', monospace;
     font-size: 13px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.7);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    line-height: 1.5;
+    resize: none;
+    outline: none;
   }
 
-  .buttons-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+  .code-editor:focus {
+    border-color: rgba(79, 172, 254, 0.5);
+    box-shadow: 0 0 0 2px rgba(79, 172, 254, 0.1);
+  }
+
+  .code-editor::placeholder {
+    color: rgba(255, 255, 255, 0.3);
+  }
+
+  .editor-actions {
+    display: flex;
+    justify-content: flex-end;
   }
 
   .action-btn {
-    padding: 10px 16px;
+    padding: 10px 24px;
     background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
     border: none;
     border-radius: 6px;
     color: white;
-    font-size: 13px;
-    font-weight: 500;
+    font-size: 14px;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    text-align: center;
   }
 
   .action-btn:hover:not(:disabled) {
-    box-shadow: 0 2px 8px rgba(79, 172, 254, 0.4);
+    box-shadow: 0 2px 12px rgba(79, 172, 254, 0.5);
     transform: translateY(-1px);
   }
 
@@ -433,70 +267,13 @@
     cursor: not-allowed;
   }
 
-  .input-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .input-group label {
-    font-size: 12px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.6);
-  }
-
-  .input-row {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .comment-input {
-    flex: 1;
-    padding: 8px 12px;
-    background: rgba(10, 14, 39, 0.8);
-    border: 1px solid rgba(79, 172, 254, 0.2);
-    border-radius: 6px;
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 13px;
-    outline: none;
-  }
-
-  .comment-input:focus {
-    border-color: rgba(79, 172, 254, 0.5);
-    box-shadow: 0 0 0 2px rgba(79, 172, 254, 0.1);
-  }
-
-  .comment-input::placeholder {
-    color: rgba(255, 255, 255, 0.3);
-  }
-
-  .comment-index-input {
-    width: 120px;
-    padding: 8px 12px;
-    background: rgba(10, 14, 39, 0.8);
-    border: 1px solid rgba(79, 172, 254, 0.2);
-    border-radius: 6px;
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 13px;
-    outline: none;
-  }
-
-  .comment-index-input:focus {
-    border-color: rgba(79, 172, 254, 0.5);
-    box-shadow: 0 0 0 2px rgba(79, 172, 254, 0.1);
-  }
-
-  .comment-index-input::placeholder {
-    color: rgba(255, 255, 255, 0.3);
-  }
-
   .result-section {
     flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
     border-top: 1px solid rgba(79, 172, 254, 0.1);
+    overflow-y: auto;
   }
 
   .section-header {
@@ -508,7 +285,7 @@
     border-bottom: 1px solid rgba(79, 172, 254, 0.1);
   }
 
-  .section-header .section-title {
+  .section-title {
     font-size: 12px;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.6);
@@ -519,10 +296,6 @@
   .execution-time {
     font-size: 11px;
     color: rgba(255, 255, 255, 0.4);
-  }
-
-  .result-section {
-    overflow-y: auto;
   }
 
   .result-section::-webkit-scrollbar {
@@ -584,7 +357,6 @@
     line-height: 1.5;
     white-space: pre-wrap;
     word-break: break-all;
-    overflow-x: auto;
   }
 
   .success-result {
@@ -603,7 +375,6 @@
     line-height: 1.5;
     white-space: pre-wrap;
     word-break: break-all;
-    overflow-x: auto;
   }
 
   .empty-result {
@@ -617,4 +388,3 @@
     margin: 0;
   }
 </style>
-

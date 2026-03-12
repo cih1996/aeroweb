@@ -4,8 +4,6 @@
  */
 
 import * as commonActions from './common-actions';
-import * as douyinActions from './douyin-actions';
-import * as temuActions from './temu-actions';
 
 // Action注册表类型
 type ActionModule = {
@@ -21,32 +19,8 @@ const commonActionRegistry: ActionModule = {
   getElementInfo: commonActions.getElementInfo,
 };
 
-// 应用特定的actions
-const appActionRegistry: { [appId: string]: ActionModule } = {
-  douyin: {
-    getVideoInfo: douyinActions.getVideoInfo,
-    digg: douyinActions.digg,
-    next: douyinActions.next,
-    toJingXuan: douyinActions.toJingXuan,
-    getComments: douyinActions.getComments,
-    sendComment: douyinActions.sendComment,
-    getCurrentInfo: douyinActions.getCurrentInfo,
-  },
-  tiktok: {
-    getVideoInfo: douyinActions.getVideoInfo,
-    digg: douyinActions.digg,
-    next: douyinActions.next,
-    toJingXuan: douyinActions.toJingXuan,
-    getComments: douyinActions.getComments,
-    sendComment: douyinActions.sendComment,
-    getCurrentInfo: douyinActions.getCurrentInfo,
-  },
-  temu: {
-    searchImages: temuActions.searchImages,
-    fillProduct: temuActions.fillProduct,
-    clickUploadImage: temuActions.clickUploadImage,
-  },
-};
+// 应用特定的actions（可通过 registerAction 动态注册）
+const appActionRegistry: { [appId: string]: ActionModule } = {};
 
 /**
  * 动态注册action（用于扩展）
@@ -83,12 +57,12 @@ export function getAction(
   if (appId && appActionRegistry[appId] && appActionRegistry[appId][actionName]) {
     return appActionRegistry[appId][actionName];
   }
-  
+
   // 再查找通用action
   if (commonActionRegistry[actionName]) {
     return commonActionRegistry[actionName];
   }
-  
+
   return null;
 }
 
@@ -99,15 +73,14 @@ export function getAction(
  */
 export function getAvailableActions(appId: string | null): string[] {
   const actions = new Set<string>();
-  
+
   // 添加通用actions
   Object.keys(commonActionRegistry).forEach(action => actions.add(action));
-  
+
   // 添加应用特定的actions
   if (appId && appActionRegistry[appId]) {
     Object.keys(appActionRegistry[appId]).forEach(action => actions.add(action));
   }
-  
+
   return Array.from(actions);
 }
-

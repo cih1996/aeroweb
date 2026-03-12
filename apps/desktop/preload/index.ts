@@ -109,6 +109,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     remove: (downloadId: string) => ipcRenderer.invoke('download:remove', { downloadId }),
   },
 
+  // AI Agent 相关
+  getCallbackUrl: () => 
+    ipcRenderer.invoke('ai:getCallbackUrl'),
+
   // 事件监听
   on: (channel: string, callback: (...args: any[]) => void) => {
     ipcRenderer.on(channel, (_, ...args) => callback(...args));
@@ -178,6 +182,7 @@ declare global {
         resume: (downloadId: string) => Promise<boolean>;
         remove: (downloadId: string) => Promise<boolean>;
       };
+      getCallbackUrl: () => Promise<string>;
       on: (channel: string, callback: (...args: any[]) => void) => void;
       off: (channel: string, callback: (...args: any[]) => void) => void;
     };

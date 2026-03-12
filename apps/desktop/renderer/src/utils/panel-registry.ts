@@ -4,7 +4,6 @@
  */
 import type { PanelConfig, PanelRegistry } from '../types/panel';
 import JSEditorPanel from '../components/panels/JSEditorPanel.svelte';
-import TemuUploadPanel from '../components/panels/TemuUploadPanel.svelte';
 import AIChatPanel from '../components/panels/AIChatPanel.svelte';
 import DownloadListPanel from '../components/panels/DownloadListPanel.svelte';
 
@@ -16,13 +15,6 @@ export const panelRegistry: PanelRegistry = {
     name: 'JS 执行器',
     component: JSEditorPanel,
     // 不指定 appIds，表示所有应用都可以使用
-  },
-  // Temu 上货面板
-  'temu-upload': {
-    id: 'temu-upload',
-    name: '上货',
-    component: TemuUploadPanel,
-    appIds: ['temu'], // 仅针对 Temu 应用
   },
   // AI 对话面板
   'ai-chat': {
@@ -56,4 +48,3 @@ export function getPanelsForApp(appId: string): PanelConfig[] {
 export function getPanelById(panelId: string): PanelConfig | undefined {
   return panelRegistry[panelId];
 }
-

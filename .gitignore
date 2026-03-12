@@ -44,3 +44,9 @@ profiles/
 
 .turbo/
 release/
+
+__pycache__/
+memory_storage/
+conversations/
+vent/
+venv/

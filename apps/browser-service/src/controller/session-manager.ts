@@ -1,8 +1,11 @@
 import type { Session, Profile } from '@qiyi/shared';
 
 /**
- * Session 管理器
- * 负责管理 Tab 的会话状态、Cookies、LocalStorage 等
+ * Manages sessions and profiles for application tabs.
+ *
+ * This class provides methods to create, retrieve, and delete sessions
+ * associated with specific tab IDs. It also allows for the creation and
+ * retrieval of profiles that can be optionally linked to sessions.
  */
 export class SessionManager {
   private sessions: Map<string, Session> = new Map();
