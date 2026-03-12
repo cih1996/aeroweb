@@ -407,7 +407,7 @@
         <div class="empty-state">
           <div class="empty-icon">🤖</div>
           <p>开始与 AI 智能助手对话</p>
-          <p class="empty-hint">AI 可以根据你的指令自动执行{appId}操作</p>
+          <p class="empty-hint">AI 可以帮助你执行浏览器操作</p>
         </div>
       {:else}
         {#each messages as message (message.id)}

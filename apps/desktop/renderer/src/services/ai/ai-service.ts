@@ -27,10 +27,9 @@ export class AIService {
   /**
    * 加载提示词文件
    * @param promptFilePath 提示词文件路径
-   * @param appId 应用ID，用于动态注入操作方法说明
    */
-  async loadPromptFile(promptFilePath: string, appId?: string): Promise<void> {
-    this.systemPrompt = await loadPromptFile(promptFilePath, appId);
+  async loadPromptFile(promptFilePath: string): Promise<void> {
+    this.systemPrompt = await loadPromptFile(promptFilePath);
   }
 
   /**
