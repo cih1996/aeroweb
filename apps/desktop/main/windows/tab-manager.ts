@@ -356,9 +356,9 @@ export class TabManager {
     // 使用 getContentBounds() 而不是 getBounds()，这样可以获取实际内容区域的大小
     // 避免在最大化时因为窗口边框导致的偏移问题
     const bounds = this.mainWindow.getContentBounds();
-    const sidebarWidth = 240; // 侧边栏宽度
+    const sidebarWidth = 60; // 侧边栏宽度
     const titleBarHeight = 40; // 标题栏高度
-    const tabBarHeight = 36; // TabBar 高度（当有标签时显示）
+    const tabBarHeight = 38; // TabBar 高度（当有标签时显示）
     
     // 检查是否有激活的 tab，如果有则显示 TabBar
     const hasActiveTab = this.activeTabId !== null;
@@ -392,9 +392,9 @@ export class TabManager {
     // 使用 getContentBounds() 而不是 getBounds()，这样可以获取实际内容区域的大小
     // 避免在最大化时因为窗口边框导致的偏移问题
     const bounds = this.mainWindow.getContentBounds();
-    const sidebarWidth = 240;
+    const sidebarWidth = 60;
     const titleBarHeight = 40;
-    const tabBarHeight = 36;
+    const tabBarHeight = 38;
     
     // 检查是否有激活的 tab，如果有则显示 TabBar
     const hasActiveTab = this.activeTabId !== null;
