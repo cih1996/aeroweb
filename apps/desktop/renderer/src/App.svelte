@@ -8,7 +8,6 @@
   import TabBar from './components/TabBar.svelte';
   import BrowserConfigModal from './components/BrowserConfigModal.svelte';
   import TabPropertiesModal from './components/TabPropertiesModal.svelte';
-  import RightPanel from './components/RightPanel.svelte';
   import DownloadListPanel from './components/panels/DownloadListPanel.svelte';
   import ThemeProvider from './components/ThemeProvider.svelte';
   import type { Theme } from './components/ThemeProvider.svelte';
@@ -39,9 +38,6 @@
   let currentTheme: Theme = 'system';
   let resolvedTheme: 'light' | 'dark' = 'dark';
 
-  // 右侧面板宽度（可拖拽调整）
-  let rightPanelWidth = 400;
-  
   // 是否显示下载列表视图
   let showDownloadList = false;
   // 保存切换到下载列表前的视图状态
@@ -244,17 +240,6 @@
       console.log('[App] restoreHidden completed');
     } catch (error) {
       console.error('[App] 恢复浏览器失败:', error);
-    }
-  }
-
-  async function updateBrowserViewBounds() {
-    // 通知主进程更新 BrowserView 的宽度
-    try {
-      await window.electronAPI.view.updateBounds({ 
-        rightPanelWidth: rightPanelWidth 
-      });
-    } catch (error) {
-      console.error('[App] 更新 BrowserView bounds 失败:', error);
     }
   }
 
@@ -471,24 +456,8 @@
         </div>
       {:else if hasActiveTab}
         <!-- 有激活的 tab，显示浏览器内容区域（BrowserView 会显示在这里） -->
-        {@const activeTab = tabs.find(t => t.id === activeTabId)}
-        <div class="browser-wrapper">
-          <div class="browser-container">
-            <!-- BrowserView 会通过 Electron 渲染在这里，这个 div 只是占位 -->
-          </div>
-          {#if hasActiveTab}
-            <RightPanel 
-              appId={activeTab?.appId || ''} 
-              tabId={activeTabId}
-              visible={hasActiveTab}
-              width={rightPanelWidth}
-              on:widthChange={(e) => {
-                rightPanelWidth = e.detail.width;
-                // 通知主进程更新 BrowserView 宽度
-                updateBrowserViewBounds();
-              }}
-            />
-          {/if}
+        <div class="browser-container">
+          <!-- BrowserView 会通过 Electron 渲染在这里，这个 div 只是占位 -->
         </div>
       {:else}
         <!-- 没有激活的 tab，显示应用中心或我的应用 -->
@@ -566,13 +535,6 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-  }
-
-  .browser-wrapper {
-    flex: 1;
-    display: flex;
-    overflow: visible;
-    position: relative;
   }
 
   .download-list-view {

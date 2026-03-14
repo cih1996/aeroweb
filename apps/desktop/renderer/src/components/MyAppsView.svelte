@@ -13,51 +13,37 @@
   let selectedConfigIds: Set<string> = new Set();
   let isSelectMode = false;
 
-  // 应用 ID 到名称的映射
   let appNameMap: Record<string, string> = {};
   let appIconMap: Record<string, string> = {};
 
-  // 按应用分组的配置
   $: groupedConfigs = (() => {
     const grouped: Record<string, BrowserConfig[]> = {};
-    
     configs.forEach(config => {
       const appId = config.appId || 'uncategorized';
-      if (!grouped[appId]) {
-        grouped[appId] = [];
-      }
+      if (!grouped[appId]) grouped[appId] = [];
       grouped[appId].push(config);
     });
-
-    // 按最后使用时间排序
     Object.keys(grouped).forEach(appId => {
       grouped[appId].sort((a, b) => b.lastUsedAt - a.lastUsedAt);
     });
-
     return grouped;
   })();
 
   onMount(async () => {
     apps = getAllApps();
-    
-    // 构建应用名称和图标映射
     const newAppNameMap: Record<string, string> = {};
     const newAppIconMap: Record<string, string> = {};
-    
     for (const app of apps) {
       newAppNameMap[app.id] = app.name;
       newAppIconMap[app.id] = app.icon;
     }
-    
     appNameMap = newAppNameMap;
     appIconMap = newAppIconMap;
   });
 
   function toggleSelectMode() {
     isSelectMode = !isSelectMode;
-    if (!isSelectMode) {
-      selectedConfigIds.clear();
-    }
+    if (!isSelectMode) selectedConfigIds.clear();
   }
 
   function toggleSelect(configId: string) {
@@ -66,7 +52,7 @@
     } else {
       selectedConfigIds.add(configId);
     }
-    selectedConfigIds = selectedConfigIds; // 触发响应式更新
+    selectedConfigIds = selectedConfigIds;
   }
 
   function selectAll() {
@@ -83,7 +69,6 @@
     if (isSelectMode) {
       toggleSelect(config.id);
     } else {
-      console.log("[MyAppsView] 打开指定应用配置", config);
       dispatch('configClick', { config });
     }
   }
@@ -91,15 +76,13 @@
   function handleBatchRun() {
     const selectedConfigs = configs.filter(c => selectedConfigIds.has(c.id));
     dispatch('batchRun', { configs: selectedConfigs });
-    // 运行后退出选择模式
     isSelectMode = false;
     selectedConfigIds.clear();
   }
 
   function handleBatchDelete() {
     if (selectedConfigIds.size === 0) return;
-    
-    if (confirm(`确定要删除选中的 ${selectedConfigIds.size} 个配置吗？此操作不可恢复。`)) {
+    if (confirm(`确定要删除选中的 ${selectedConfigIds.size} 个配置吗？`)) {
       deleteConfigs(Array.from(selectedConfigIds));
       dispatch('configsDeleted', { configIds: Array.from(selectedConfigIds) });
       selectedConfigIds.clear();
@@ -107,7 +90,6 @@
     }
   }
 
-  // 获取应用顺序（按名称排序）
   $: appOrder = Object.keys(groupedConfigs).sort((a, b) => {
     const nameA = appNameMap[a] || a;
     const nameB = appNameMap[b] || b;
@@ -123,34 +105,28 @@
     </div>
     <div class="header-actions">
       {#if isSelectMode}
-        <div class="selection-info">
-          <span>已选择 {selectedConfigIds.size} 项</span>
-        </div>
-        <button class="btn-secondary" on:click={deselectAll} disabled={selectedConfigIds.size === 0}>
-          取消全选
-        </button>
-        <button class="btn-secondary" on:click={selectAll}>
-          全选
-        </button>
-        <button class="btn-primary" on:click={handleBatchRun} disabled={selectedConfigIds.size === 0}>
+        <span class="selection-info">已选择 {selectedConfigIds.size} 项</span>
+        <button class="btn btn-secondary" on:click={deselectAll} disabled={selectedConfigIds.size === 0}>取消全选</button>
+        <button class="btn btn-secondary" on:click={selectAll}>全选</button>
+        <button class="btn btn-primary" on:click={handleBatchRun} disabled={selectedConfigIds.size === 0}>
           批量运行 ({selectedConfigIds.size})
         </button>
-        <button class="btn-danger" on:click={handleBatchDelete} disabled={selectedConfigIds.size === 0}>
+        <button class="btn btn-danger" on:click={handleBatchDelete} disabled={selectedConfigIds.size === 0}>
           批量删除 ({selectedConfigIds.size})
         </button>
-        <button class="btn-secondary" on:click={toggleSelectMode}>
-          取消
-        </button>
+        <button class="btn btn-secondary" on:click={toggleSelectMode}>取消</button>
       {:else}
-        <button class="btn-secondary" on:click={toggleSelectMode}>
-          批量选择
-        </button>
+        <button class="btn btn-secondary" on:click={toggleSelectMode}>批量选择</button>
       {/if}
     </div>
   </div>
 
   {#if configs.length === 0}
     <div class="empty-state">
+      <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+        <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4"/>
+        <path d="M24 16V32M16 24H32" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
       <p>还没有创建任何浏览器配置</p>
       <p class="empty-hint">在应用中心创建配置后，它们会显示在这里</p>
     </div>
@@ -162,55 +138,38 @@
           <div class="app-section">
             <div class="app-header">
               {#if appIconMap[appId]}
-                <img 
-                  src={appIconMap[appId]} 
-                  alt={appNameMap[appId]}
-                  class="app-icon"
-                  on:error={(e) => {
-                    const target = e.currentTarget;
-                    if (target instanceof HTMLImageElement) {
-                      target.style.display = 'none';
-                    }
-                  }}
-                />
+                <img src={appIconMap[appId]} alt="" class="app-icon" />
+              {:else}
+                <div class="app-icon-placeholder">{(appNameMap[appId] || appId).charAt(0).toUpperCase()}</div>
               {/if}
               <h3 class="app-name">{appNameMap[appId] || appId}</h3>
-              <span class="app-count">({appConfigs.length})</span>
+              <span class="app-count">{appConfigs.length}</span>
             </div>
             <div class="configs-grid">
               {#each appConfigs as config (config.id)}
-                <div 
-                  class="config-card {isSelectMode && selectedConfigIds.has(config.id) ? 'selected' : ''}"
-                  role="button"
-                  tabindex="0"
+                <button
+                  class="config-card"
+                  class:selected={isSelectMode && selectedConfigIds.has(config.id)}
                   on:click={() => handleConfigClick(config)}
-                  on:keydown={(e) => e.key === 'Enter' && handleConfigClick(config)}
                 >
                   {#if isSelectMode}
                     <div class="config-checkbox">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         checked={selectedConfigIds.has(config.id)}
                         on:change={() => toggleSelect(config.id)}
                         on:click|stopPropagation
                       />
                     </div>
                   {/if}
-                  <div class="config-icon">
-                    {config.name.charAt(0).toUpperCase()}
-                  </div>
+                  <div class="config-icon">{config.name.charAt(0).toUpperCase()}</div>
                   <div class="config-info">
                     <div class="config-name">{config.name}</div>
                     <div class="config-meta">
                       创建于 {new Date(config.createdAt).toLocaleDateString()}
                     </div>
-                    {#if config.lastUsedAt}
-                      <div class="config-meta">
-                        最后使用 {new Date(config.lastUsedAt).toLocaleDateString()}
-                      </div>
-                    {/if}
                   </div>
-                </div>
+                </button>
               {/each}
             </div>
           </div>
@@ -222,8 +181,7 @@
 
 <style>
   .my-apps-view {
-    padding: 32px;
-    max-width: 1400px;
+    padding: var(--spacing-2xl);
     height: 100%;
     overflow-y: auto;
   }
@@ -232,182 +190,181 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 32px;
-    padding-bottom: 24px;
-    border-bottom: 1px solid rgba(79, 172, 254, 0.2);
+    margin-bottom: var(--spacing-2xl);
+    padding-bottom: var(--spacing-xl);
+    border-bottom: 1px solid var(--border-primary);
   }
 
   .header-left h2 {
-    margin: 0 0 8px 0;
-    font-size: 28px;
-    font-weight: 700;
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    margin: 0 0 var(--spacing-sm) 0;
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
   }
 
   .subtitle {
     margin: 0;
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.5);
+    font-size: var(--font-size-base);
+    color: var(--text-tertiary);
   }
 
   .header-actions {
     display: flex;
-    gap: 12px;
+    gap: var(--spacing-sm);
     align-items: center;
   }
 
   .selection-info {
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 14px;
-    margin-right: 8px;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    margin-right: var(--spacing-sm);
   }
 
-  .btn-primary,
-  .btn-secondary,
-  .btn-danger {
-    padding: 8px 16px;
+  .btn {
+    padding: var(--spacing-sm) var(--spacing-md);
     border: none;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s ease;
   }
 
   .btn-primary {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    color: white;
+    background: var(--accent-primary);
+    color: var(--bg-primary);
   }
 
   .btn-primary:hover:not(:disabled) {
-    box-shadow: 0 4px 12px rgba(79, 172, 254, 0.4);
-    transform: translateY(-1px);
-  }
-
-  .btn-primary:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+    opacity: 0.9;
   }
 
   .btn-secondary {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.9);
-    border: 1px solid rgba(79, 172, 254, 0.3);
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-primary);
   }
 
   .btn-secondary:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.15);
-    border-color: rgba(79, 172, 254, 0.5);
-  }
-
-  .btn-secondary:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+    background: var(--bg-active);
+    color: var(--text-primary);
   }
 
   .btn-danger {
-    background: rgba(255, 59, 48, 0.2);
-    color: #ff3b30;
-    border: 1px solid rgba(255, 59, 48, 0.3);
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--color-error);
+    border: 1px solid rgba(239, 68, 68, 0.2);
   }
 
   .btn-danger:hover:not(:disabled) {
-    background: rgba(255, 59, 48, 0.3);
-    border-color: rgba(255, 59, 48, 0.5);
+    background: rgba(239, 68, 68, 0.2);
   }
 
-  .btn-danger:disabled {
+  .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
 
   .empty-state {
-    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     padding: 80px 20px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
+    gap: var(--spacing-md);
   }
 
   .empty-state p {
-    margin: 8px 0;
-    font-size: 16px;
+    margin: 0;
+    font-size: var(--font-size-base);
   }
 
   .empty-hint {
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.3);
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
   }
 
   .configs-container {
     display: flex;
     flex-direction: column;
-    gap: 48px;
+    gap: var(--spacing-2xl);
   }
 
   .app-section {
-    margin-bottom: 32px;
+    margin-bottom: var(--spacing-lg);
   }
 
   .app-header {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 24px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid rgba(79, 172, 254, 0.2);
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--border-secondary);
   }
 
   .app-icon {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     object-fit: contain;
+    border-radius: var(--radius-sm);
+  }
+
+  .app-icon-placeholder {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-bg);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--accent-primary);
   }
 
   .app-name {
     margin: 0;
-    font-size: 20px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
   }
 
   .app-count {
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.5);
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
     margin-left: auto;
   }
 
   .configs-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--spacing-md);
   }
 
   .config-card {
-    position: relative;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(79, 172, 254, 0.1);
-    border-radius: 12px;
-    padding: 16px;
-    cursor: pointer;
-    transition: all 0.3s ease;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+    width: 100%;
   }
 
   .config-card:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(79, 172, 254, 0.3);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(79, 172, 254, 0.2);
+    background: var(--bg-hover);
+    border-color: var(--border-hover);
   }
 
   .config-card.selected {
-    background: rgba(79, 172, 254, 0.15);
-    border-color: rgba(79, 172, 254, 0.5);
-    box-shadow: 0 0 0 2px rgba(79, 172, 254, 0.3);
+    background: var(--accent-bg);
+    border-color: var(--accent-primary);
   }
 
   .config-checkbox {
@@ -415,23 +372,22 @@
   }
 
   .config-checkbox input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     cursor: pointer;
-    accent-color: #4facfe;
   }
 
   .config-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    background: var(--accent-bg);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
-    font-weight: 700;
-    color: white;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    color: var(--accent-primary);
     flex-shrink: 0;
   }
 
@@ -441,18 +397,17 @@
   }
 
   .config-name {
-    font-size: 15px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
-    margin-bottom: 4px;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    margin-bottom: 2px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .config-meta {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.4);
-    margin-top: 2px;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
   }
 </style>

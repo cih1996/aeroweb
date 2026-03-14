@@ -55,7 +55,6 @@ declare global {
         showBrowser: (tabId: string) => Promise<void>;
         temporarilyHide: () => Promise<void>;
         restoreHidden: () => Promise<void>;
-        updateBounds: (options: { rightPanelWidth: number }) => Promise<void>;
       };
       cache: {
         getPath: (configId?: string, tabId?: string) => Promise<string>;

@@ -73,8 +73,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     showBrowser: (tabId: string) => ipcRenderer.invoke('view:showBrowser', { tabId }),
     temporarilyHide: () => ipcRenderer.invoke('view:temporarilyHide'),
     restoreHidden: () => ipcRenderer.invoke('view:restoreHidden'),
-    updateBounds: (options: { rightPanelWidth: number }) => 
-      ipcRenderer.invoke('view:updateBounds', options),
   },
 
   // 缓存路径
@@ -151,7 +149,6 @@ declare global {
         showBrowser: (tabId: string) => Promise<void>;
         temporarilyHide: () => Promise<void>;
         restoreHidden: () => Promise<void>;
-        updateBounds: (options: { rightPanelWidth: number }) => Promise<void>;
       };
       cache: {
         getPath: (configId?: string, tabId?: string) => Promise<string>;

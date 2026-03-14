@@ -19,21 +19,16 @@
 
   function handleSubmit() {
     const trimmedName = name.trim();
-    
     if (!trimmedName) {
       error = '请输入浏览器名称';
       return;
     }
-
     if (isNameDuplicate) {
-      error = '该名称已存在，请使用其他名称';
+      error = '该名称已存在';
       return;
     }
-
     error = '';
-    dispatch('submit', {
-      name: trimmedName,
-    });
+    dispatch('submit', { name: trimmedName });
     handleClose();
   }
 
@@ -44,32 +39,30 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
-      handleClose();
-    } else if (event.key === 'Enter' && event.ctrlKey) {
-      handleSubmit();
-    }
+    if (event.key === 'Escape') handleClose();
+    else if (event.key === 'Enter' && event.ctrlKey) handleSubmit();
   }
 
-  // 当显示时，自动聚焦输入框
   $: if (show) {
     setTimeout(() => {
       const input = document.querySelector('.config-modal input') as HTMLInputElement;
-      if (input) {
-        input.focus();
-      }
+      if (input) input.focus();
     }, 100);
   }
 </script>
 
 {#if show}
-  <div class="modal-overlay" on:click={handleClose} on:keydown={handleKeydown}>
-    <div class="modal-content" on:click|stopPropagation>
+  <div class="modal-overlay" role="dialog" aria-modal="true" on:click={handleClose} on:keydown={handleKeydown}>
+    <div class="modal-content" role="document" on:click|stopPropagation on:keydown|stopPropagation>
       <div class="modal-header">
         <h2>创建浏览器配置</h2>
-        <button class="close-button" on:click={handleClose}>×</button>
+        <button class="close-btn" on:click={handleClose} aria-label="关闭">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 3L11 11M11 3L3 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
       </div>
-      
+
       <div class="modal-body">
         <div class="form-group">
           <label>应用</label>
@@ -85,36 +78,21 @@
             id="browser-name"
             type="text"
             bind:value={name}
-            placeholder="请输入浏览器名称（如：工作账号、个人账号等）"
+            placeholder="如：工作账号、个人账号"
             class:error={error || isNameDuplicate}
-            on:keydown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit();
-              }
-            }}
+            on:keydown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSubmit())}
           />
           {#if error}
             <div class="error-message">{error}</div>
           {:else if isNameDuplicate && name.trim()}
-            <div class="error-message">该名称已存在，请使用其他名称</div>
+            <div class="error-message">该名称已存在</div>
           {/if}
         </div>
-
-        <!-- 未来扩展：代理配置 -->
-        <!-- <div class="form-group">
-          <label>代理设置（可选）</label>
-          <div class="proxy-config">
-            ...
-          </div>
-        </div> -->
       </div>
 
       <div class="modal-footer">
-        <button class="btn-secondary" on:click={handleClose}>取消</button>
-        <button class="btn-primary" on:click={handleSubmit} disabled={!name.trim() || isNameDuplicate}>
-          创建
-        </button>
+        <button class="btn btn-secondary" on:click={handleClose}>取消</button>
+        <button class="btn btn-primary" on:click={handleSubmit} disabled={!name.trim() || isNameDuplicate}>创建</button>
       </div>
     </div>
   </div>
@@ -123,11 +101,8 @@
 <style>
   .modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -136,20 +111,17 @@
   }
 
   .modal-content {
-    background: linear-gradient(135deg, #1a1f3a 0%, #0a0e27 100%);
-    border: 1px solid rgba(79, 172, 254, 0.3);
-    border-radius: 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-xl);
     width: 90%;
-    max-width: 500px;
-    max-height: 90vh;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    max-width: 440px;
+    box-shadow: var(--shadow-lg);
   }
 
   .modal-header {
-    padding: 24px;
-    border-bottom: 1px solid rgba(79, 172, 254, 0.2);
+    padding: var(--spacing-xl);
+    border-bottom: 1px solid var(--border-secondary);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -157,143 +129,139 @@
 
   .modal-header h2 {
     margin: 0;
-    font-size: 20px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
   }
 
-  .close-button {
-    background: transparent;
-    border: none;
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 28px;
-    cursor: pointer;
-    width: 32px;
-    height: 32px;
+  .close-btn {
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
-    transition: all 0.2s;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
   }
 
-  .close-button:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.9);
+  .close-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   .modal-body {
-    padding: 24px;
-    flex: 1;
-    overflow-y: auto;
+    padding: var(--spacing-xl);
   }
 
   .form-group {
-    margin-bottom: 20px;
+    margin-bottom: var(--spacing-lg);
+  }
+
+  .form-group:last-child {
+    margin-bottom: 0;
   }
 
   .form-group label {
     display: block;
-    margin-bottom: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
   }
 
   .required {
-    color: #ff6b6b;
+    color: var(--color-error);
   }
 
   .app-info {
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(79, 172, 254, 0.2);
-    border-radius: 8px;
+    padding: var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    border-radius: var(--radius-md);
   }
 
   .app-name {
     display: block;
-    font-size: 16px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
-    margin-bottom: 4px;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    margin-bottom: 2px;
   }
 
   .app-url {
     display: block;
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.5);
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
   }
 
   input[type="text"] {
     width: 100%;
-    padding: 12px 16px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(79, 172, 254, 0.2);
-    border-radius: 8px;
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 14px;
-    transition: all 0.2s;
+    padding: var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    transition: all 0.15s ease;
     box-sizing: border-box;
   }
 
   input[type="text"]:focus {
     outline: none;
-    border-color: #4facfe;
-    box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-bg);
   }
 
   input[type="text"].error {
-    border-color: #ff6b6b;
+    border-color: var(--color-error);
   }
 
   .error-message {
-    margin-top: 6px;
-    font-size: 12px;
-    color: #ff6b6b;
+    margin-top: var(--spacing-xs);
+    font-size: var(--font-size-xs);
+    color: var(--color-error);
   }
 
   .modal-footer {
-    padding: 24px;
-    border-top: 1px solid rgba(79, 172, 254, 0.2);
+    padding: var(--spacing-lg) var(--spacing-xl);
+    border-top: 1px solid var(--border-secondary);
     display: flex;
-    gap: 12px;
+    gap: var(--spacing-sm);
     justify-content: flex-end;
   }
 
-  .btn-secondary,
-  .btn-primary {
-    padding: 10px 20px;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 500;
+  .btn {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s ease;
     border: none;
   }
 
   .btn-secondary {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.7);
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-primary);
   }
 
   .btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: rgba(255, 255, 255, 0.9);
+    background: var(--bg-active);
+    color: var(--text-primary);
   }
 
   .btn-primary {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    color: white;
+    background: var(--accent-primary);
+    color: var(--bg-primary);
   }
 
   .btn-primary:hover:not(:disabled) {
-    box-shadow: 0 4px 12px rgba(79, 172, 254, 0.4);
-    transform: translateY(-1px);
+    opacity: 0.9;
   }
 
   .btn-primary:disabled {
@@ -301,4 +269,3 @@
     cursor: not-allowed;
   }
 </style>
-

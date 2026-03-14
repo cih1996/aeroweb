@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher } from 'svelte';
   import { getConfigCachePath } from '../utils/browser-cache-info';
 
   export let show: boolean = false;
@@ -13,27 +13,18 @@
   let cookies: any[] = [];
   let loading = false;
 
-
   async function loadTabInfo() {
     if (!tab) return;
-    
     loading = true;
     try {
-      // 加载缓存路径
       if (tab.configId) {
         cachePath = await getConfigCachePath(tab.configId);
       } else if (tab.id) {
         const { getTabCachePath } = await import('../utils/browser-cache-info');
         cachePath = await getTabCachePath(tab.id);
       }
-
-      // 加载内存信息
       if (tab.id) {
         memoryInfo = await window.electronAPI.tab.getMemoryUsage(tab.id);
-      }
-
-      // 加载 Cookies
-      if (tab.id) {
         cookies = await window.electronAPI.tab.getCookies(tab.id);
       }
     } catch (error) {
@@ -48,15 +39,11 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === 'Escape') {
-      handleClose();
-    }
+    if (event.key === 'Escape') handleClose();
   }
 
   function copyToClipboard(text: string) {
-    navigator.clipboard.writeText(text).then(() => {
-      // 可以添加提示
-    });
+    navigator.clipboard.writeText(text);
   }
 
   function formatBytes(bytes: number): string {
@@ -69,11 +56,15 @@
 </script>
 
 {#if show}
-  <div class="modal-overlay" on:click={handleClose} on:keydown={handleKeydown}>
-    <div class="modal-content" on:click|stopPropagation>
+  <div class="modal-overlay" role="dialog" aria-modal="true" on:click={handleClose} on:keydown={handleKeydown}>
+    <div class="modal-content" role="document" on:click|stopPropagation on:keydown|stopPropagation>
       <div class="modal-header">
         <h2>Tab 属性</h2>
-        <button class="close-button" on:click={handleClose}>×</button>
+        <button class="close-btn" on:click={handleClose} aria-label="关闭">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 3L11 11M11 3L3 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
       </div>
 
       {#if tab}
@@ -84,24 +75,9 @@
       {/if}
 
       <div class="modal-tabs">
-        <button 
-          class="modal-tab {activeTab === 'cache' ? 'active' : ''}"
-          on:click={() => activeTab = 'cache'}
-        >
-          缓存路径
-        </button>
-        <button 
-          class="modal-tab {activeTab === 'memory' ? 'active' : ''}"
-          on:click={() => activeTab = 'memory'}
-        >
-          内存使用
-        </button>
-        <button 
-          class="modal-tab {activeTab === 'cookies' ? 'active' : ''}"
-          on:click={() => activeTab = 'cookies'}
-        >
-          Cookies
-        </button>
+        <button class="modal-tab" class:active={activeTab === 'cache'} on:click={() => activeTab = 'cache'}>缓存路径</button>
+        <button class="modal-tab" class:active={activeTab === 'memory'} on:click={() => activeTab = 'memory'}>内存使用</button>
+        <button class="modal-tab" class:active={activeTab === 'cookies'} on:click={() => activeTab = 'cookies'}>Cookies</button>
       </div>
 
       <div class="modal-body">
@@ -113,18 +89,21 @@
         {:else if activeTab === 'cache'}
           <div class="info-section">
             <div class="info-item">
-              <label>缓存路径</label>
+              <span class="info-label">缓存路径</span>
               <div class="info-value">
-                <code class="path-text">{cachePath || '未找到'}</code>
+                <code>{cachePath || '未找到'}</code>
                 {#if cachePath}
-                  <button class="copy-button" on:click={() => copyToClipboard(cachePath)} title="复制">
-                    📋
+                  <button class="copy-btn" on:click={() => copyToClipboard(cachePath)} title="复制">
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <rect x="4" y="4" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/>
+                      <path d="M2 10V3C2 2.44772 2.44772 2 3 2H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                    </svg>
                   </button>
                 {/if}
               </div>
             </div>
             <div class="info-item">
-              <label>配置 ID</label>
+              <span class="info-label">配置 ID</span>
               <div class="info-value">
                 <code>{tab?.configId || '无（临时 Tab）'}</code>
               </div>
@@ -134,22 +113,16 @@
           <div class="info-section">
             {#if memoryInfo}
               <div class="info-item">
-                <label>内存使用</label>
-                <div class="info-value">
-                  {formatBytes(memoryInfo.workingSetSize || 0)}
-                </div>
+                <span class="info-label">内存使用</span>
+                <div class="info-value">{formatBytes(memoryInfo.workingSetSize || 0)}</div>
               </div>
               <div class="info-item">
-                <label>峰值内存</label>
-                <div class="info-value">
-                  {formatBytes(memoryInfo.peakWorkingSetSize || 0)}
-                </div>
+                <span class="info-label">峰值内存</span>
+                <div class="info-value">{formatBytes(memoryInfo.peakWorkingSetSize || 0)}</div>
               </div>
               <div class="info-item">
-                <label>私有内存</label>
-                <div class="info-value">
-                  {formatBytes(memoryInfo.privateBytes || 0)}
-                </div>
+                <span class="info-label">私有内存</span>
+                <div class="info-value">{formatBytes(memoryInfo.privateBytes || 0)}</div>
               </div>
             {:else}
               <div class="empty-state">暂无内存信息</div>
@@ -167,14 +140,15 @@
                     </div>
                     <div class="cookie-value">
                       <code>{cookie.value}</code>
-                      <button class="copy-button" on:click={() => copyToClipboard(cookie.value)} title="复制">
-                        📋
+                      <button class="copy-btn" on:click={() => copyToClipboard(cookie.value)} title="复制">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                          <rect x="4" y="4" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2"/>
+                          <path d="M2 10V3C2 2.44772 2.44772 2 3 2H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                        </svg>
                       </button>
                     </div>
                     {#if cookie.expirationDate}
-                      <div class="cookie-meta">
-                        过期时间: {new Date(cookie.expirationDate * 1000).toLocaleString()}
-                      </div>
+                      <div class="cookie-meta">过期: {new Date(cookie.expirationDate * 1000).toLocaleString()}</div>
                     {/if}
                   </div>
                 {/each}
@@ -187,7 +161,7 @@
       </div>
 
       <div class="modal-footer">
-        <button class="btn-primary" on:click={handleClose}>关闭</button>
+        <button class="btn btn-primary" on:click={handleClose}>关闭</button>
       </div>
     </div>
   </div>
@@ -196,34 +170,30 @@
 <style>
   .modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 999999;
     backdrop-filter: blur(4px);
-    pointer-events: auto;
   }
 
   .modal-content {
-    background: linear-gradient(135deg, #1a1f3a 0%, #0a0e27 100%);
-    border: 1px solid rgba(79, 172, 254, 0.3);
-    border-radius: 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-xl);
     width: 90%;
-    max-width: 700px;
-    max-height: 90vh;
+    max-width: 600px;
+    max-height: 80vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-lg);
   }
 
   .modal-header {
-    padding: 24px;
-    border-bottom: 1px solid rgba(79, 172, 254, 0.2);
+    padding: var(--spacing-xl);
+    border-bottom: 1px solid var(--border-secondary);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -231,101 +201,82 @@
 
   .modal-header h2 {
     margin: 0;
-    font-size: 20px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
   }
 
-  .close-button {
-    background: transparent;
-    border: none;
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 28px;
-    cursor: pointer;
-    width: 32px;
-    height: 32px;
+  .close-btn {
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
-    transition: all 0.2s;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
   }
 
-  .close-button:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.9);
+  .close-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   .tab-info-header {
-    padding: 16px 24px;
-    border-bottom: 1px solid rgba(79, 172, 254, 0.1);
-    background: rgba(255, 255, 255, 0.02);
+    padding: var(--spacing-md) var(--spacing-xl);
+    border-bottom: 1px solid var(--border-secondary);
+    background: var(--bg-tertiary);
   }
 
   .tab-info-name {
-    font-size: 16px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
-    margin-bottom: 4px;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    margin-bottom: 2px;
   }
 
   .tab-info-url {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.5);
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
     word-break: break-all;
   }
 
   .modal-tabs {
     display: flex;
-    padding: 0 24px;
-    border-bottom: 1px solid rgba(79, 172, 254, 0.2);
-    gap: 0;
+    padding: 0 var(--spacing-xl);
+    border-bottom: 1px solid var(--border-secondary);
   }
 
   .modal-tab {
-    padding: 12px 20px;
+    padding: var(--spacing-md) var(--spacing-lg);
     background: transparent;
     border: none;
     border-bottom: 2px solid transparent;
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 14px;
-    font-weight: 500;
+    color: var(--text-muted);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s ease;
   }
 
   .modal-tab:hover {
-    color: rgba(255, 255, 255, 0.8);
-    background: rgba(79, 172, 254, 0.05);
+    color: var(--text-secondary);
+    background: var(--bg-hover);
   }
 
   .modal-tab.active {
-    color: #4facfe;
-    border-bottom-color: #4facfe;
+    color: var(--accent-primary);
+    border-bottom-color: var(--accent-primary);
   }
 
   .modal-body {
     flex: 1;
-    padding: 24px;
+    padding: var(--spacing-xl);
     overflow-y: auto;
-    min-height: 200px;
-  }
-
-  .modal-body::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  .modal-body::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .modal-body::-webkit-scrollbar-thumb {
-    background: rgba(79, 172, 254, 0.3);
-    border-radius: 4px;
+    min-height: 150px;
   }
 
   .loading-state {
@@ -333,18 +284,18 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 40px;
-    color: rgba(255, 255, 255, 0.5);
+    padding: var(--spacing-2xl);
+    color: var(--text-muted);
   }
 
   .loading-spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid rgba(79, 172, 254, 0.2);
-    border-top-color: #4facfe;
+    width: 32px;
+    height: 32px;
+    border: 2px solid var(--border-secondary);
+    border-top-color: var(--accent-primary);
     border-radius: 50%;
     animation: spin 1s linear infinite;
-    margin-bottom: 16px;
+    margin-bottom: var(--spacing-md);
   }
 
   @keyframes spin {
@@ -354,19 +305,19 @@
   .info-section {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: var(--spacing-lg);
   }
 
   .info-item {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--spacing-sm);
   }
 
-  .info-item label {
-    font-size: 12px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.6);
+  .info-label {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -374,122 +325,122 @@
   .info-value {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(79, 172, 254, 0.2);
-    border-radius: 8px;
-    font-size: 13px;
-    color: rgba(255, 255, 255, 0.9);
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
   }
 
-  .path-text {
+  .info-value code {
     flex: 1;
     word-break: break-all;
-    font-family: 'Consolas', 'Monaco', monospace;
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
   }
 
-  code {
-    font-family: 'Consolas', 'Monaco', monospace;
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.8);
-  }
-
-  .copy-button {
+  .copy-btn {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.5);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
     cursor: pointer;
-    padding: 4px;
-    font-size: 14px;
-    transition: all 0.2s;
-    flex-shrink: 0;
+    transition: all 0.15s ease;
   }
 
-  .copy-button:hover {
-    color: #4facfe;
-    transform: scale(1.1);
+  .copy-btn:hover {
+    background: var(--bg-hover);
+    color: var(--accent-primary);
   }
 
   .empty-state {
     text-align: center;
-    padding: 40px;
-    color: rgba(255, 255, 255, 0.4);
+    padding: var(--spacing-2xl);
+    color: var(--text-muted);
   }
 
   .cookies-list {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--spacing-md);
   }
 
   .cookie-item {
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(79, 172, 254, 0.1);
-    border-radius: 8px;
+    padding: var(--spacing-md);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    border-radius: var(--radius-md);
   }
 
   .cookie-header {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 8px;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
   }
 
   .cookie-name {
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 14px;
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
   }
 
   .cookie-domain {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.5);
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
   }
 
   .cookie-value {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
+    gap: var(--spacing-sm);
   }
 
   .cookie-value code {
     flex: 1;
     word-break: break-all;
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.7);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
   }
 
   .cookie-meta {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.4);
-    margin-top: 4px;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    margin-top: var(--spacing-xs);
   }
 
   .modal-footer {
-    padding: 16px 24px;
-    border-top: 1px solid rgba(79, 172, 254, 0.2);
+    padding: var(--spacing-lg) var(--spacing-xl);
+    border-top: 1px solid var(--border-secondary);
     display: flex;
     justify-content: flex-end;
   }
 
-  .btn-primary {
-    padding: 10px 20px;
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    border: none;
-    border-radius: 8px;
-    color: white;
-    font-size: 14px;
-    font-weight: 500;
+  .btn {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s ease;
+    border: none;
+  }
+
+  .btn-primary {
+    background: var(--accent-primary);
+    color: var(--bg-primary);
   }
 
   .btn-primary:hover {
-    box-shadow: 0 4px 12px rgba(79, 172, 254, 0.4);
-    transform: translateY(-1px);
+    opacity: 0.9;
   }
 </style>
-

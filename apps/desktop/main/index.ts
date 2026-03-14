@@ -443,14 +443,6 @@ function setupIPC() {
     }
   });
 
-  // 动态更新右侧面板宽度
-  ipcMain.handle('view:updateBounds', (_, { rightPanelWidth }: { rightPanelWidth: number }) => {
-    if (tabManager) {
-      tabManager.setRightPanelWidth(rightPanelWidth);
-      tabManager.updateViewsBounds();
-    }
-  });
-
   // 窗口控制 IPC
   ipcMain.handle('window:minimize', () => {
     if (mainWindow) {

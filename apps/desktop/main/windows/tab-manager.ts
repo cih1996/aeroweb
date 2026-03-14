@@ -14,7 +14,6 @@ export class TabManager {
   private mainWindow: BrowserWindow;
   private browserService: BrowserService;
   private hiddenTabId: string | null = null; // 记录临时隐藏的 tab ID
-  private rightPanelWidth: number = 400; // 右侧面板宽度
   // 文件上传拦截器
   private fileUploadInterceptors: Map<string, FileUploadInterceptor> = new Map();
   // 下载管理器
@@ -365,7 +364,7 @@ export class TabManager {
     const topOffset = titleBarHeight + (hasActiveTab ? tabBarHeight : 0);
     
     // 确保宽度不为负数
-    const width = Math.max(0, bounds.width - sidebarWidth - this.rightPanelWidth);
+    const width = Math.max(0, bounds.width - sidebarWidth);
     
     try {
       view.setBounds({
@@ -401,7 +400,7 @@ export class TabManager {
     const topOffset = titleBarHeight + (hasActiveTab ? tabBarHeight : 0);
     
     // 确保宽度不为负数
-    const width = Math.max(0, bounds.width - sidebarWidth - this.rightPanelWidth);
+    const width = Math.max(0, bounds.width - sidebarWidth);
     
     // 遍历 views 时，检查每个 view 是否仍然有效
     const viewsToRemove: string[] = [];
@@ -435,13 +434,6 @@ export class TabManager {
         this.sessions.delete(tabId);
       });
     }
-  }
-
-  /**
-   * 设置右侧面板的宽度
-   */
-  setRightPanelWidth(width: number) {
-    this.rightPanelWidth = width;
   }
 
   /**
