@@ -4,7 +4,6 @@
  */
 import type { PanelConfig, PanelRegistry } from '../types/panel';
 import JSEditorPanel from '../components/panels/JSEditorPanel.svelte';
-import AIChatPanel from '../components/panels/AIChatPanel.svelte';
 import DownloadListPanel from '../components/panels/DownloadListPanel.svelte';
 
 // 注册所有可用的面板
@@ -14,13 +13,6 @@ export const panelRegistry: PanelRegistry = {
     id: 'js-editor',
     name: 'JS 执行器',
     component: JSEditorPanel,
-    // 不指定 appIds，表示所有应用都可以使用
-  },
-  // AI 对话面板
-  'ai-chat': {
-    id: 'ai-chat',
-    name: 'AI 对话',
-    component: AIChatPanel,
     // 不指定 appIds，表示所有应用都可以使用
   },
   // 下载列表面板

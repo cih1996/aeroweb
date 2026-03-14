@@ -8,7 +8,6 @@
   import TabBar from './components/TabBar.svelte';
   import BrowserConfigModal from './components/BrowserConfigModal.svelte';
   import TabPropertiesModal from './components/TabPropertiesModal.svelte';
-  import AIConfigModal from './components/AIConfigModal.svelte';
   import RightPanel from './components/RightPanel.svelte';
   import DownloadListPanel from './components/panels/DownloadListPanel.svelte';
   import ThemeProvider from './components/ThemeProvider.svelte';
@@ -17,9 +16,6 @@
   import { getAppById } from './utils/app-storage';
   import { saveConfig, getAllConfigs, getConfigsByAppId, updateLastUsed } from './utils/browser-config-storage';
   import type { BrowserConfig } from './types/browser-config';
-  import { loadAIConfig, saveAIConfig, getCurrentProvider, setCurrentProvider } from './services/ai';
-  import type { AIConfig } from './services/ai';
-  import { initAIAgentSystem } from './services/ai-agent/init';
 
   let tabs: any[] = [];
   let activeTabId: string | null = null;
@@ -37,22 +33,12 @@
   // Tab 属性模态框相关
   let showPropertiesModal = false;
   let propertiesTab: any = null;
-  
-  // AI 配置模态框相关
-  let showAIConfigModal = false;
-  let currentProvider = getCurrentProvider();
-  let aiConfig: AIConfig = loadAIConfig(currentProvider);
 
   // 主题相关
   let themeProvider: ThemeProvider;
   let currentTheme: Theme = 'system';
   let resolvedTheme: 'light' | 'dark' = 'dark';
-  
-  // 当服务商变化时，重新加载配置
-  $: if (currentProvider) {
-    aiConfig = loadAIConfig(currentProvider);
-  }
-  
+
   // 右侧面板宽度（可拖拽调整）
   let rightPanelWidth = 400;
   
@@ -103,9 +89,6 @@
   $: hasActiveTab = activeView !== 'apps' && activeView !== 'my-apps' && appTabs.some(t => t.active) && !isLoading;
 
   onMount(async () => {
-    // 初始化 AI Agent 系统
-    initAIAgentSystem();
-    
     await loadTabs();
     browserConfigs = getAllConfigs();
     
@@ -456,12 +439,11 @@
   <TitleBar {currentTheme} {resolvedTheme} on:toggleTheme={toggleTheme} />
   
   <div class="app-container">
-    <Sidebar 
-      {tabs} 
+    <Sidebar
+      {tabs}
       {activeView}
       on:viewChange={handleViewChange}
       on:appClick={handleSidebarAppClick}
-      on:openAIConfig={() => showAIConfigModal = true}
       on:openDownloadList={handleDownloadListToggle}
     />
     
@@ -548,20 +530,6 @@
     show={showPropertiesModal}
     tab={propertiesTab}
     on:close={handlePropertiesModalClose}
-  />
-  
-  <!-- AI 配置模态框 -->
-  <AIConfigModal
-    show={showAIConfigModal}
-    config={aiConfig}
-    on:save={(e) => {
-      const savedConfig = e.detail.config;
-      aiConfig = savedConfig;
-      currentProvider = savedConfig.provider;
-      saveAIConfig(savedConfig);
-      showAIConfigModal = false;
-    }}
-    on:close={() => showAIConfigModal = false}
   />
 </main>
 </ThemeProvider>

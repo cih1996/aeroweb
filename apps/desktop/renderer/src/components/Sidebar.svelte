@@ -2,7 +2,6 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import HomeIcon from './icons/HomeIcon.svelte';
   import MyAppsIcon from './icons/MyAppsIcon.svelte';
-  import AIIcon from './icons/AIIcon.svelte';
   import { getAllApps } from '../utils/app-storage';
   import type { AppConfig } from '../types/app-config';
   import DownloadIcon from './icons/DownloadIcon.svelte';
@@ -103,10 +102,6 @@
     <button class="footer-btn" on:click={() => dispatch('openDownloadList')}>
       <DownloadIcon />
       <span>下载</span>
-    </button>
-    <button class="footer-btn" on:click={() => dispatch('openAIConfig')}>
-      <AIIcon />
-      <span>AI</span>
     </button>
   </div>
 </aside>
