@@ -4,7 +4,7 @@ const path = require('path');
 
 const mainFile = path.join(__dirname, '../dist/main/index.js');
 const preloadFile = path.join(__dirname, '../dist/preload/index.js');
-const viteUrl = 'http://localhost:5173';
+const viteUrl = 'http://localhost:3800';
 
 function checkFiles() {
   return existsSync(mainFile) && existsSync(preloadFile);
@@ -73,7 +73,7 @@ async function waitForReady() {
   console.log('Electron 路径:', electronPath);
   console.log('应用路径:', appPath);
   
-  const proc = spawn(electronPath, [appPath], {
+  const proc = spawn(electronPath, ['--remote-debugging-port=9222', appPath], {
     env: { ...process.env, NODE_ENV: 'development' },
     stdio: 'inherit',
     shell: false
