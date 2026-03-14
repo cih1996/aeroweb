@@ -108,7 +108,8 @@ export class ApiServer {
         response = await this.handleExecute(tabId, body);
       } else if (pathname.match(/^\/api\/tabs\/[^/]+\/console$/) && method === 'GET') {
         const tabId = pathname.split('/')[3];
-        response = await this.handleConsole(tabId);
+        const level = url.searchParams.get('level') || undefined;
+        response = await this.handleConsole(tabId, level);
       } else {
         response = { success: false, error: 'Not found' };
         res.writeHead(404);
@@ -310,15 +311,15 @@ export class ApiServer {
   }
 
   // GET /api/tabs/:id/console
-  private async handleConsole(tabId: string): Promise<ApiResponse> {
-    // Console logs 需要在 TabManager 中收集
-    // 暂时返回空数组，后续可以扩展
+  private async handleConsole(tabId: string, level?: string): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+
+    const logs = this.tabManager.getConsoleLogs(tabId, level);
     return {
       success: true,
-      data: {
-        logs: [],
-        message: 'Console log collection not yet implemented',
-      },
+      data: logs,
     };
   }
 }

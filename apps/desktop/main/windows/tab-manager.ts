@@ -6,6 +6,15 @@ import type { Tab } from '@qiyi/shared';
 import { FileUploadInterceptor } from './file-upload-interceptor';
 import { DownloadManager } from './download-manager';
 
+// 控制台日志条目
+interface ConsoleLogEntry {
+  level: 'log' | 'warn' | 'error' | 'info' | 'debug';
+  message: string;
+  source: string;
+  line: number;
+  timestamp: number;
+}
+
 export class TabManager {
   private tabs: Map<string, Tab> = new Map();
   private views: Map<string, BrowserView> = new Map();
@@ -18,6 +27,9 @@ export class TabManager {
   private fileUploadInterceptors: Map<string, FileUploadInterceptor> = new Map();
   // 下载管理器
   private downloadManager: DownloadManager;
+  // 控制台日志存储（每个 tab 最多 100 条）
+  private consoleLogs: Map<string, ConsoleLogEntry[]> = new Map();
+  private readonly MAX_CONSOLE_LOGS = 100;
 
   constructor(mainWindow: BrowserWindow, browserService: BrowserService, downloadManager: DownloadManager) {
     this.mainWindow = mainWindow;
@@ -153,7 +165,38 @@ export class TabManager {
     this.tabs.set(tabId, tab);
     this.views.set(tabId, view);
 
+    // 初始化控制台日志存储
+    this.consoleLogs.set(tabId, []);
+
     console.log(tabId)
+
+    // 监听控制台消息
+    view.webContents.on('console-message', (event, level, message, line, sourceId) => {
+      const levelMap: Record<number, ConsoleLogEntry['level']> = {
+        0: 'debug',
+        1: 'log',
+        2: 'warn',
+        3: 'error',
+      };
+
+      const logEntry: ConsoleLogEntry = {
+        level: levelMap[level] || 'log',
+        message,
+        source: sourceId,
+        line,
+        timestamp: Date.now(),
+      };
+
+      const logs = this.consoleLogs.get(tabId) || [];
+      logs.push(logEntry);
+
+      // 保持最多 100 条
+      if (logs.length > this.MAX_CONSOLE_LOGS) {
+        logs.shift();
+      }
+
+      this.consoleLogs.set(tabId, logs);
+    });
 
     // 监听标题变化
     view.webContents.on('page-title-updated', (_, title) => {
@@ -252,7 +295,10 @@ export class TabManager {
       // await tabSession.clearStorageData();
       this.sessions.delete(tabId);
     }
-    
+
+    // 清理控制台日志
+    this.consoleLogs.delete(tabId);
+
     this.tabs.delete(tabId);
 
     // 激活下一个 Tab（如果还有剩余的）
@@ -663,6 +709,28 @@ export class TabManager {
    */
   getView(tabId: string) {
     return this.views.get(tabId);
+  }
+
+  /**
+   * 获取 Tab 的控制台日志
+   * @param tabId Tab ID
+   * @param level 可选，过滤日志级别
+   */
+  getConsoleLogs(tabId: string, level?: string): ConsoleLogEntry[] {
+    const logs = this.consoleLogs.get(tabId) || [];
+
+    if (level) {
+      return logs.filter(log => log.level === level);
+    }
+
+    return logs;
+  }
+
+  /**
+   * 清空 Tab 的控制台日志
+   */
+  clearConsoleLogs(tabId: string): void {
+    this.consoleLogs.set(tabId, []);
   }
 
 }
