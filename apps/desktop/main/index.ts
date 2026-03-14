@@ -4,6 +4,7 @@ import { TabManager } from './windows/tab-manager';
 import { BrowserService } from '@qiyi/browser-service';
 import { DownloadManager } from './windows/download-manager';
 import { getAICallbackServer } from './ai-callback-server';
+import { getApiServer } from './api-server';
 import { readdir, stat, readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 
@@ -11,6 +12,7 @@ let mainWindow: BrowserWindow | null = null;
 let tabManager: TabManager | null = null;
 let downloadManager: DownloadManager | null = null;
 let aiCallbackServer: ReturnType<typeof getAICallbackServer> | null = null;
+let apiServer: ReturnType<typeof getApiServer> | null = null;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -40,13 +42,13 @@ function createWindow() {
       if (isLoaded) return; // 如果已经加载过，不再重复
       
       const http = require('http');
-      const req = http.get('http://localhost:5173', (res: any) => {
+      const req = http.get('http://localhost:3800', (res: any) => {
         res.on('data', () => {}); // 消费响应数据
         res.on('end', () => {
           if (!isLoaded) {
             isLoaded = true;
             // 收到响应说明服务器已启动
-            mainWindow!.loadURL('http://localhost:5173');
+            mainWindow!.loadURL('http://localhost:3800');
           }
         });
       });
@@ -80,7 +82,7 @@ function createWindow() {
       }
       
       // 允许 Vite HMR（开发环境）
-      if (navigationUrl.includes('localhost:5173') && currentUrl.includes('localhost:5173')) {
+      if (navigationUrl.includes('localhost:3800') && currentUrl.includes('localhost:3800')) {
         currentUrl = navigationUrl;
         console.log('[Main] 允许 Vite HMR 导航:', navigationUrl);
         return;
@@ -262,6 +264,16 @@ app.whenReady().then(async () => {
     console.log('[Main] AI 回调服务器已启动');
   } catch (err) {
     console.error('[Main] AI 回调服务器启动失败:', err);
+  }
+
+  // 启动 HTTP API 服务器
+  try {
+    apiServer = getApiServer();
+    apiServer.setTabManager(tabManager!);
+    await apiServer.start();
+    console.log('[Main] HTTP API 服务器已启动');
+  } catch (err) {
+    console.error('[Main] HTTP API 服务器启动失败:', err);
   }
 
   // 注册全局快捷键拦截刷新（F5, Ctrl+R）

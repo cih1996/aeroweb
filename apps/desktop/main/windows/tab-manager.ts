@@ -643,7 +643,34 @@ export class TabManager {
       } catch (fallbackError) {
         throw fallbackError;
       }
- 
+
+  }
+
+  /**
+   * 截取指定 Tab 的屏幕截图
+   * @returns base64 编码的 PNG 图片
+   */
+  async captureScreenshot(tabId: string): Promise<string | null> {
+    const view = this.views.get(tabId);
+    if (!view) {
+      return null;
+    }
+
+    try {
+      const image = await view.webContents.capturePage();
+      const buffer = image.toPNG();
+      return buffer.toString('base64');
+    } catch (error) {
+      console.error('[TabManager] Screenshot failed:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 获取指定 Tab 的 BrowserView（供 API Server 使用）
+   */
+  getView(tabId: string) {
+    return this.views.get(tabId);
   }
 
 }
