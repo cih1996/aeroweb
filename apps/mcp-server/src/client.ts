@@ -31,10 +31,12 @@ export class BrowserClient {
   async req<T>(method: string, path: string, body?: unknown): Promise<T> {
     return new Promise((resolve, reject) => {
       const data = body ? JSON.stringify(body) : undefined;
+      // 对 path 进行 URL 编码，处理中文等特殊字符
+      const encodedPath = path.split('/').map(segment => encodeURIComponent(segment)).join('/');
       const r = http.request({
         hostname: this.host,
         port: this.port,
-        path: `/api${path}`,
+        path: `/api${encodedPath}`,
         method,
         headers: {
           'Content-Type': 'application/json',

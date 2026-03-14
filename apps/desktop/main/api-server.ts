@@ -91,36 +91,36 @@ export class ApiServer {
         const body = await this.parseBody(req);
         response = await this.handleCreateTab(body);
       } else if (pathname.match(/^\/api\/tabs\/[^/]+$/) && method === 'DELETE') {
-        const tabId = pathname.split('/')[3];
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
         response = await this.handleCloseTab(tabId);
       } else if (pathname.match(/^\/api\/tabs\/[^/]+\/navigate$/) && method === 'POST') {
-        const tabId = pathname.split('/')[3];
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
         const body = await this.parseBody(req);
         response = await this.handleNavigate(tabId, body);
       } else if (pathname.match(/^\/api\/tabs\/[^/]+\/screenshot$/) && method === 'GET') {
-        const tabId = pathname.split('/')[3];
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
         response = await this.handleScreenshot(tabId);
       } else if (pathname.match(/^\/api\/tabs\/[^/]+\/snapshot$/) && method === 'GET') {
-        const tabId = pathname.split('/')[3];
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
         response = await this.handleSnapshot(tabId);
       } else if (pathname.match(/^\/api\/tabs\/[^/]+\/execute$/) && method === 'POST') {
-        const tabId = pathname.split('/')[3];
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
         const body = await this.parseBody(req);
         response = await this.handleExecute(tabId, body);
       } else if (pathname.match(/^\/api\/tabs\/[^/]+\/console$/) && method === 'GET') {
-        const tabId = pathname.split('/')[3];
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
         const level = url.searchParams.get('level') || undefined;
         response = await this.handleConsole(tabId, level);
       } else if (pathname.match(/^\/api\/tabs\/[^/]+\/upload$/) && method === 'POST') {
-        const tabId = pathname.split('/')[3];
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
         const body = await this.parseBody(req);
         response = await this.handleUpload(tabId, body);
       } else if (pathname.match(/^\/api\/tabs\/[^/]+\/click$/) && method === 'POST') {
-        const tabId = pathname.split('/')[3];
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
         const body = await this.parseBody(req);
         response = await this.handleClick(tabId, body);
       } else if (pathname.match(/^\/api\/tabs\/[^/]+\/type$/) && method === 'POST') {
-        const tabId = pathname.split('/')[3];
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
         const body = await this.parseBody(req);
         response = await this.handleType(tabId, body);
       }
