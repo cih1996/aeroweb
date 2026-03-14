@@ -1,10 +1,14 @@
 {
-  "name": "@qiyi/desktop",
+  "name": "@aeroweb/desktop",
   "version": "1.0.0",
   "private": true,
   "main": "./dist/main/index.js",
-  "author": "奇易聚合浏览AI+",
-  "description": "一款基于AI的多环境管理浏览器应用",
+  "author": "cih1996",
+  "description": "Browser for AI Agents",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cih1996/polyWebsAI.git"
+  },
   "scripts": {
     "dev": "concurrently -k --raw --kill-others-on-fail=false \"pnpm:dev:main\" \"pnpm:dev:preload\" \"pnpm:dev:renderer\" \"pnpm:dev:electron\"",
     "dev:main": "tsc -p tsconfig.main.json --watch",

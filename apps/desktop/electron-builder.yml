@@ -2,6 +2,9 @@ appId: com.aeroweb.browser
 productName: AeroWeb
 copyright: Copyright © 2024
 
+# 禁用自动发布，由 GitHub Actions 处理
+publish: null
+
 # 使用国内镜像源加速下载（可选，如果代理更快可以删除此配置）
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
