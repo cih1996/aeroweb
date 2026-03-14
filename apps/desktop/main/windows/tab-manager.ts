@@ -686,6 +686,7 @@ export class TabManager {
 
   /**
    * 截取指定 Tab 的屏幕截图
+   * 使用 CDP Page.captureScreenshot 避免 macOS 屏幕录制权限问题
    * @returns base64 编码的 PNG 图片
    */
   async captureScreenshot(tabId: string): Promise<string | null> {
@@ -695,9 +696,14 @@ export class TabManager {
     }
 
     try {
-      const image = await view.webContents.capturePage();
-      const buffer = image.toPNG();
-      return buffer.toString('base64');
+      const dbg = view.webContents.debugger;
+      dbg.attach('1.3');
+      const { data } = await dbg.sendCommand('Page.captureScreenshot', {
+        format: 'png',
+        captureBeyondViewport: false,
+      });
+      dbg.detach();
+      return data; // CDP 返回的已经是 base64
     } catch (error) {
       console.error('[TabManager] Screenshot failed:', error);
       return null;
