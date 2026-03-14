@@ -5,7 +5,7 @@
   "description": "Browser for AI Agents — CLI, API, MCP ready",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cih1996/polyWebsAI.git"
+    "url": "https://github.com/cih1996/aeroweb.git"
   },
   "author": "cih1996",
   "license": "MIT",

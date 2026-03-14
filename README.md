@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/cih1996/polyWebsAI/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/cih1996/polyWebsAI/release.yml?style=for-the-badge" alt="Build"></a>
-  <a href="https://github.com/cih1996/polyWebsAI/releases"><img src="https://img.shields.io/github/v/release/cih1996/polyWebsAI?include_prereleases&style=for-the-badge" alt="Release"></a>
+  <a href="https://github.com/cih1996/aeroweb/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/cih1996/aeroweb/release.yml?style=for-the-badge" alt="Build"></a>
+  <a href="https://github.com/cih1996/aeroweb/releases"><img src="https://img.shields.io/github/v/release/cih1996/aeroweb?include_prereleases&style=for-the-badge" alt="Release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
 </p>
 
@@ -18,7 +18,7 @@
 
 If you want your AI to browse the web like a human but faster and without popups, this is it.
 
-[Releases](https://github.com/cih1996/polyWebsAI/releases) · [CLI Docs](#cli-usage) · [API Reference](#api-endpoints) · [MCP Integration](#mcp-server)
+[Releases](https://github.com/cih1996/aeroweb/releases) · [CLI Docs](#cli-usage) · [API Reference](#api-endpoints) · [MCP Integration](#mcp-server)
 
 ## Why AeroWeb?
 
@@ -32,7 +32,7 @@ If you want your AI to browse the web like a human but faster and without popups
 
 ## Install
 
-Download from [Releases](https://github.com/cih1996/polyWebsAI/releases):
+Download from [Releases](https://github.com/cih1996/aeroweb/releases):
 
 | Platform | Download |
 |----------|----------|
@@ -209,8 +209,8 @@ Available tools for AI:
 
 ```bash
 # Clone
-git clone https://github.com/cih1996/polyWebsAI.git
-cd polyWebsAI
+git clone https://github.com/cih1996/aeroweb.git
+cd aeroweb
 
 # Install
 pnpm install

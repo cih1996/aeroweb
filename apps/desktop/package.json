@@ -7,7 +7,7 @@
   "description": "Browser for AI Agents",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cih1996/polyWebsAI.git"
+    "url": "https://github.com/cih1996/aeroweb.git"
   },
   "scripts": {
     "dev": "concurrently -k --raw --kill-others-on-fail=false \"pnpm:dev:main\" \"pnpm:dev:preload\" \"pnpm:dev:renderer\" \"pnpm:dev:electron\"",
