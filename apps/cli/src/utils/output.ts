@@ -9,7 +9,7 @@ class Output {
     else { if (msg && !this.quiet) console.log(`✓ ${msg}`); if (data !== undefined) console.log(typeof data === 'object' ? JSON.stringify(data, null, 2) : data); }
   }
   error(msg: string) { if (this.format === 'json') console.error(JSON.stringify({ success: false, error: msg }, null, 2)); else console.error(`✗ ${msg}`); }
-  table(data: Record<string, unknown>[], cols?: string[]) {
+  table(data: Array<Record<string, any>>, cols?: string[]) {
     if (this.format === 'json') { console.log(JSON.stringify({ success: true, data }, null, 2)); return; }
     if (!data.length) { console.log('(empty)'); return; }
     const c = cols || Object.keys(data[0]);

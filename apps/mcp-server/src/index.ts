@@ -23,158 +23,85 @@ const server = new Server(
 // 定义工具列表
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
-    // 实例管理
+    // Tab 管理
     {
-      name: 'instance_create',
-      description: '创建新的浏览器实例（独立缓存/cookie）',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          id: { type: 'string', description: '实例ID' },
-          name: { type: 'string', description: '实例名称' },
-        },
-        required: ['id'],
-      },
-    },
-    {
-      name: 'instance_list',
-      description: '列出所有浏览器实例',
+      name: 'tab_list',
+      description: '列出所有打开的 Tab',
       inputSchema: { type: 'object', properties: {} },
     },
     {
-      name: 'instance_close',
-      description: '关闭浏览器实例',
-      inputSchema: {
-        type: 'object',
-        properties: { id: { type: 'string', description: '实例ID' } },
-        required: ['id'],
-      },
-    },
-    // 页面管理
-    {
-      name: 'page_new',
-      description: '在实例中打开新页面',
+      name: 'tab_new',
+      description: '打开新 Tab',
       inputSchema: {
         type: 'object',
         properties: {
-          instance: { type: 'string', description: '实例ID' },
-          url: { type: 'string', description: '要打开的URL' },
+          url: { type: 'string', description: '要打开的 URL' },
+          name: { type: 'string', description: 'Tab 名称（可选）' },
         },
-        required: ['instance', 'url'],
+        required: ['url'],
       },
     },
     {
-      name: 'page_list',
-      description: '列出实例中的所有页面',
+      name: 'tab_close',
+      description: '关闭 Tab',
       inputSchema: {
         type: 'object',
-        properties: { instance: { type: 'string', description: '实例ID' } },
-        required: ['instance'],
+        properties: { tabId: { type: 'string', description: 'Tab ID' } },
+        required: ['tabId'],
       },
     },
     {
-      name: 'page_close',
-      description: '关闭页面',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          instance: { type: 'string', description: '实例ID' },
-          pageId: { type: 'string', description: '页面ID' },
-        },
-        required: ['instance', 'pageId'],
-      },
-    },
-    {
-      name: 'page_goto',
-      description: '导航到指定URL',
+      name: 'tab_goto',
+      description: '导航到指定 URL',
       inputSchema: {
         type: 'object',
         properties: {
-          instance: { type: 'string', description: '实例ID' },
-          pageId: { type: 'string', description: '页面ID' },
-          url: { type: 'string', description: '目标URL' },
+          tabId: { type: 'string', description: 'Tab ID' },
+          url: { type: 'string', description: '目标 URL' },
         },
-        required: ['instance', 'pageId', 'url'],
+        required: ['tabId', 'url'],
       },
     },
     {
-      name: 'page_snapshot',
-      description: '获取页面快照（a11y树，用于理解页面结构）',
+      name: 'tab_snapshot',
+      description: '获取页面快照（DOM 结构，用于理解页面）',
       inputSchema: {
         type: 'object',
-        properties: {
-          instance: { type: 'string', description: '实例ID' },
-          pageId: { type: 'string', description: '页面ID' },
-        },
-        required: ['instance', 'pageId'],
+        properties: { tabId: { type: 'string', description: 'Tab ID' } },
+        required: ['tabId'],
       },
     },
     {
-      name: 'page_screenshot',
+      name: 'tab_screenshot',
       description: '页面截图',
       inputSchema: {
         type: 'object',
-        properties: {
-          instance: { type: 'string', description: '实例ID' },
-          pageId: { type: 'string', description: '页面ID' },
-          fullPage: { type: 'boolean', description: '是否全页面截图' },
-        },
-        required: ['instance', 'pageId'],
-      },
-    },
-    // 元素操作
-    {
-      name: 'action_click',
-      description: '点击页面元素',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          instance: { type: 'string', description: '实例ID' },
-          pageId: { type: 'string', description: '页面ID' },
-          uid: { type: 'string', description: '元素UID（从snapshot获取）' },
-        },
-        required: ['instance', 'pageId', 'uid'],
+        properties: { tabId: { type: 'string', description: 'Tab ID' } },
+        required: ['tabId'],
       },
     },
     {
-      name: 'action_fill',
-      description: '填充输入框',
+      name: 'tab_execute',
+      description: '在页面中执行 JavaScript',
       inputSchema: {
         type: 'object',
         properties: {
-          instance: { type: 'string', description: '实例ID' },
-          pageId: { type: 'string', description: '页面ID' },
-          uid: { type: 'string', description: '元素UID' },
-          value: { type: 'string', description: '要填充的值' },
+          tabId: { type: 'string', description: 'Tab ID' },
+          script: { type: 'string', description: 'JavaScript 代码' },
         },
-        required: ['instance', 'pageId', 'uid', 'value'],
+        required: ['tabId', 'script'],
       },
     },
     {
-      name: 'action_evaluate',
-      description: '在页面中执行JavaScript',
+      name: 'tab_console',
+      description: '获取页面控制台日志',
       inputSchema: {
         type: 'object',
         properties: {
-          instance: { type: 'string', description: '实例ID' },
-          pageId: { type: 'string', description: '页面ID' },
-          script: { type: 'string', description: 'JavaScript代码' },
+          tabId: { type: 'string', description: 'Tab ID' },
+          level: { type: 'string', description: '过滤级别 (log|warn|error|info|debug)' },
         },
-        required: ['instance', 'pageId', 'script'],
-      },
-    },
-    {
-      name: 'action_wait',
-      description: '等待页面中出现指定文本',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          instance: { type: 'string', description: '实例ID' },
-          pageId: { type: 'string', description: '页面ID' },
-          text: { type: 'array', items: { type: 'string' }, description: '要等待的文本列表' },
-          timeout: { type: 'number', description: '超时时间(ms)' },
-        },
-        required: ['instance', 'pageId', 'text'],
+        required: ['tabId'],
       },
     },
   ],
@@ -189,51 +116,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const a = args as Record<string, unknown>;
 
     switch (name) {
-      // 实例管理
-      case 'instance_create':
-        result = await client.createInstance({ id: a.id as string, name: (a.name || a.id) as string });
+      case 'tab_list':
+        result = await client.listTabs();
         break;
-      case 'instance_list':
-        result = await client.listInstances();
+      case 'tab_new':
+        result = await client.createTab(a.url as string, 'mcp', a.name as string);
         break;
-      case 'instance_close':
-        result = await client.closeInstance(a.id as string);
+      case 'tab_close':
+        result = await client.closeTab(a.tabId as string);
         break;
-
-      // 页面管理
-      case 'page_new':
-        result = await client.newPage(a.instance as string, a.url as string);
+      case 'tab_goto':
+        result = await client.navigate(a.tabId as string, a.url as string);
         break;
-      case 'page_list':
-        result = await client.listPages(a.instance as string);
+      case 'tab_snapshot':
+        result = await client.snapshot(a.tabId as string);
         break;
-      case 'page_close':
-        result = await client.closePage(a.instance as string, a.pageId as string);
+      case 'tab_screenshot':
+        result = await client.screenshot(a.tabId as string);
         break;
-      case 'page_goto':
-        result = await client.navigate(a.instance as string, a.pageId as string, { type: 'url', url: a.url as string });
+      case 'tab_execute':
+        result = await client.execute(a.tabId as string, a.script as string);
         break;
-      case 'page_snapshot':
-        result = await client.takeSnapshot(a.instance as string, a.pageId as string);
+      case 'tab_console':
+        result = await client.console(a.tabId as string, a.level as string);
         break;
-      case 'page_screenshot':
-        result = await client.takeScreenshot(a.instance as string, a.pageId as string, { fullPage: a.fullPage as boolean });
-        break;
-
-      // 元素操作
-      case 'action_click':
-        result = await client.click(a.instance as string, a.pageId as string, a.uid as string);
-        break;
-      case 'action_fill':
-        result = await client.fill(a.instance as string, a.pageId as string, a.uid as string, a.value as string);
-        break;
-      case 'action_evaluate':
-        result = await client.evaluate(a.instance as string, a.pageId as string, a.script as string);
-        break;
-      case 'action_wait':
-        result = await client.waitFor(a.instance as string, a.pageId as string, a.text as string[], a.timeout as number);
-        break;
-
       default:
         throw new Error(`Unknown tool: ${name}`);
     }
