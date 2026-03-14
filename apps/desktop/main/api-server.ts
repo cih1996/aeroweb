@@ -110,6 +110,18 @@ export class ApiServer {
         const tabId = pathname.split('/')[3];
         const level = url.searchParams.get('level') || undefined;
         response = await this.handleConsole(tabId, level);
+      } else if (pathname.match(/^\/api\/tabs\/[^/]+\/upload$/) && method === 'POST') {
+        const tabId = pathname.split('/')[3];
+        const body = await this.parseBody(req);
+        response = await this.handleUpload(tabId, body);
+      } else if (pathname.match(/^\/api\/tabs\/[^/]+\/click$/) && method === 'POST') {
+        const tabId = pathname.split('/')[3];
+        const body = await this.parseBody(req);
+        response = await this.handleClick(tabId, body);
+      } else if (pathname.match(/^\/api\/tabs\/[^/]+\/type$/) && method === 'POST') {
+        const tabId = pathname.split('/')[3];
+        const body = await this.parseBody(req);
+        response = await this.handleType(tabId, body);
       } else {
         response = { success: false, error: 'Not found' };
         res.writeHead(404);
@@ -320,6 +332,60 @@ export class ApiServer {
     return {
       success: true,
       data: logs,
+    };
+  }
+
+  // POST /api/tabs/:id/upload
+  private async handleUpload(tabId: string, body: any): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+    const { files } = body;
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      return { success: false, error: 'files array is required' };
+    }
+    const result = await this.tabManager.uploadFiles(tabId, files);
+    return {
+      success: result.success,
+      data: result.success ? { count: result.count, message: result.message } : undefined,
+      error: result.success ? undefined : result.message,
+    };
+  }
+
+  // POST /api/tabs/:id/click
+  private async handleClick(tabId: string, body: any): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+    const { selector } = body;
+    if (!selector) {
+      return { success: false, error: 'selector is required' };
+    }
+    const result = await this.tabManager.clickElement(tabId, selector);
+    return {
+      success: result.success,
+      data: result.success ? { message: result.message } : undefined,
+      error: result.success ? undefined : result.message,
+    };
+  }
+
+  // POST /api/tabs/:id/type
+  private async handleType(tabId: string, body: any): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+    const { selector, text, clear = false } = body;
+    if (!selector) {
+      return { success: false, error: 'selector is required' };
+    }
+    if (text === undefined) {
+      return { success: false, error: 'text is required' };
+    }
+    const result = await this.tabManager.typeText(tabId, selector, text, clear);
+    return {
+      success: result.success,
+      data: result.success ? { message: result.message } : undefined,
+      error: result.success ? undefined : result.message,
     };
   }
 }

@@ -748,5 +748,85 @@ export class TabManager {
     this.consoleLogs.set(tabId, []);
   }
 
+  /**
+   * 文件上传 API
+   * @param tabId Tab ID
+   * @param files 文件路径数组
+   */
+  async uploadFiles(tabId: string, files: string[]): Promise<{ success: boolean; count: number; message: string }> {
+    const interceptor = this.fileUploadInterceptors.get(tabId);
+    if (!interceptor) {
+      return { success: false, count: 0, message: 'Tab not found' };
+    }
+
+    // 验证文件路径
+    const validFiles = files.filter(f => existsSync(f));
+    if (validFiles.length === 0) {
+      return { success: false, count: 0, message: 'No valid files provided' };
+    }
+
+    return await interceptor.triggerScan(validFiles);
+  }
+
+  /**
+   * 元素点击 API
+   * @param tabId Tab ID
+   * @param selector CSS 选择器
+   */
+  async clickElement(tabId: string, selector: string): Promise<{ success: boolean; message: string }> {
+    const view = this.views.get(tabId);
+    if (!view) {
+      return { success: false, message: 'Tab not found' };
+    }
+
+    try {
+      const result = await view.webContents.executeJavaScript(`
+        (function() {
+          const el = document.querySelector('${selector.replace(/'/g, "\\'")}');
+          if (!el) return { success: false, message: 'Element not found' };
+          el.click();
+          return { success: true, message: 'Clicked' };
+        })()
+      `);
+      return result;
+    } catch (error: any) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 元素输入 API
+   * @param tabId Tab ID
+   * @param selector CSS 选择器
+   * @param text 输入文本
+   * @param clear 是否先清空
+   */
+  async typeText(tabId: string, selector: string, text: string, clear: boolean = false): Promise<{ success: boolean; message: string }> {
+    const view = this.views.get(tabId);
+    if (!view) {
+      return { success: false, message: 'Tab not found' };
+    }
+
+    try {
+      const result = await view.webContents.executeJavaScript(`
+        (function() {
+          const el = document.querySelector('${selector.replace(/'/g, "\\'")}');
+          if (!el) return { success: false, message: 'Element not found' };
+          el.focus();
+          if (${clear}) {
+            el.value = '';
+          }
+          el.value ${clear ? '=' : '+='} '${text.replace(/'/g, "\\'")}';
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          return { success: true, message: 'Typed' };
+        })()
+      `);
+      return result;
+    } catch (error: any) {
+      return { success: false, message: error.message };
+    }
+  }
+
 }
 

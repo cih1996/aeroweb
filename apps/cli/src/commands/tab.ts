@@ -140,3 +140,46 @@ tabCommand
       process.exit(1);
     }
   });
+
+// 文件上传
+tabCommand
+  .command('upload <tabId> <files...>')
+  .description('上传文件到页面')
+  .action(async (tabId, files) => {
+    try {
+      const r = await client.upload(tabId, files);
+      output.success(r, '文件上传已触发');
+    } catch (e: any) {
+      output.error(e.message);
+      process.exit(1);
+    }
+  });
+
+// 点击元素
+tabCommand
+  .command('click <tabId> <selector>')
+  .description('点击页面元素')
+  .action(async (tabId, selector) => {
+    try {
+      const r = await client.click(tabId, selector);
+      output.success(r, '元素已点击');
+    } catch (e: any) {
+      output.error(e.message);
+      process.exit(1);
+    }
+  });
+
+// 输入文本
+tabCommand
+  .command('type <tabId> <selector> <text>')
+  .description('向元素输入文本')
+  .option('-c, --clear', '先清空内容')
+  .action(async (tabId, selector, text, o) => {
+    try {
+      const r = await client.type(tabId, selector, text, o.clear);
+      output.success(r, '文本已输入');
+    } catch (e: any) {
+      output.error(e.message);
+      process.exit(1);
+    }
+  });

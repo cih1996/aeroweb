@@ -97,6 +97,21 @@ class BrowserClient {
     const query = level ? `?level=${level}` : '';
     return this.req<ConsoleLog[]>('GET', `/tabs/${tabId}/console${query}`);
   }
+
+  // 文件上传
+  upload(tabId: string, files: string[]) {
+    return this.req<{ count: number; message: string }>('POST', `/tabs/${tabId}/upload`, { files });
+  }
+
+  // 点击元素
+  click(tabId: string, selector: string) {
+    return this.req<{ message: string }>('POST', `/tabs/${tabId}/click`, { selector });
+  }
+
+  // 输入文本
+  type(tabId: string, selector: string, text: string, clear?: boolean) {
+    return this.req<{ message: string }>('POST', `/tabs/${tabId}/type`, { selector, text, clear });
+  }
 }
 
 export const client = new BrowserClient();

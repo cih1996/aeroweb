@@ -104,6 +104,44 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['tabId'],
       },
     },
+    {
+      name: 'tab_upload',
+      description: '上传文件到页面的文件输入框',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          tabId: { type: 'string', description: 'Tab ID' },
+          files: { type: 'array', items: { type: 'string' }, description: '文件路径数组' },
+        },
+        required: ['tabId', 'files'],
+      },
+    },
+    {
+      name: 'tab_click',
+      description: '点击页面元素',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          tabId: { type: 'string', description: 'Tab ID' },
+          selector: { type: 'string', description: 'CSS 选择器' },
+        },
+        required: ['tabId', 'selector'],
+      },
+    },
+    {
+      name: 'tab_type',
+      description: '向页面元素输入文本',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          tabId: { type: 'string', description: 'Tab ID' },
+          selector: { type: 'string', description: 'CSS 选择器' },
+          text: { type: 'string', description: '要输入的文本' },
+          clear: { type: 'boolean', description: '是否先清空内容' },
+        },
+        required: ['tabId', 'selector', 'text'],
+      },
+    },
   ],
 }));
 
@@ -139,6 +177,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       case 'tab_console':
         result = await client.console(a.tabId as string, a.level as string);
+        break;
+      case 'tab_upload':
+        result = await client.upload(a.tabId as string, a.files as string[]);
+        break;
+      case 'tab_click':
+        result = await client.click(a.tabId as string, a.selector as string);
+        break;
+      case 'tab_type':
+        result = await client.type(a.tabId as string, a.selector as string, a.text as string, a.clear as boolean);
         break;
       default:
         throw new Error(`Unknown tool: ${name}`);
