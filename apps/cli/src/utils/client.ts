@@ -5,11 +5,21 @@ interface ApiRes<T = unknown> { success: boolean; data?: T; error?: string; }
 interface TabInfo {
   id: string;
   appId: string;
+  appName?: string;
   url: string;
   title: string;
   active: boolean;
   configId?: string;
   configName?: string;
+}
+
+interface AppInfo {
+  id: string;
+  name: string;
+  url: string;
+  icon: string;
+  color?: string;
+  isFavorite: boolean;
 }
 
 interface ConsoleLog {
@@ -64,8 +74,8 @@ class BrowserClient {
     return this.req<TabInfo[]>('GET', '/tabs');
   }
 
-  createTab(url: string, appId = 'cli', configName?: string) {
-    return this.req<TabInfo>('POST', '/tabs', { url, appId, configName });
+  createTab(url: string, name?: string, appId?: string) {
+    return this.req<TabInfo>('POST', '/tabs', { url, name, appId });
   }
 
   closeTab(tabId: string) {
@@ -111,6 +121,23 @@ class BrowserClient {
   // 输入文本
   type(tabId: string, selector: string, text: string, clear?: boolean) {
     return this.req<{ message: string }>('POST', `/tabs/${tabId}/type`, { selector, text, clear });
+  }
+
+  // 应用管理
+  listApps() {
+    return this.req<AppInfo[]>('GET', '/apps');
+  }
+
+  getApp(appId: string) {
+    return this.req<AppInfo>('GET', `/apps/${appId}`);
+  }
+
+  createApp(name: string, url: string, icon?: string, color?: string) {
+    return this.req<AppInfo & { message: string }>('POST', '/apps', { name, url, icon, color });
+  }
+
+  deleteApp(appId: string) {
+    return this.req<{ deleted: string }>('DELETE', `/apps/${appId}`);
   }
 }
 

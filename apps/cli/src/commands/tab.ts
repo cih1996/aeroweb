@@ -24,11 +24,12 @@ tabCommand
 tabCommand
   .command('new <url>')
   .description('打开新 Tab')
-  .option('-n, --name <name>', 'Tab 名称')
+  .option('-n, --name <name>', '应用名称（不存在则自动创建）')
+  .option('-a, --app <appId>', '关联到已有应用 ID')
   .action(async (url, o) => {
     try {
-      const tab = await client.createTab(url, 'cli', o.name);
-      output.success(tab, '页面已创建');
+      const tab = await client.createTab(url, o.name, o.app);
+      output.success(tab, `页面已创建，关联应用: ${tab.appName || tab.appId}`);
     } catch (e: any) {
       output.error(e.message);
       process.exit(1);

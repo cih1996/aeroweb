@@ -5,6 +5,7 @@
 import * as http from 'http';
 import { TabManager } from './windows/tab-manager';
 import { app } from 'electron';
+import * as AppStorage from './app-storage';
 
 const API_PORT = 9528;
 
@@ -122,6 +123,19 @@ export class ApiServer {
         const tabId = pathname.split('/')[3];
         const body = await this.parseBody(req);
         response = await this.handleType(tabId, body);
+      }
+      // 应用管理 API
+      else if (pathname === '/api/apps' && method === 'GET') {
+        response = await this.handleListApps();
+      } else if (pathname === '/api/apps' && method === 'POST') {
+        const body = await this.parseBody(req);
+        response = await this.handleCreateApp(body);
+      } else if (pathname.match(/^\/api\/apps\/[^/]+$/) && method === 'GET') {
+        const appId = pathname.split('/')[3];
+        response = await this.handleGetApp(appId);
+      } else if (pathname.match(/^\/api\/apps\/[^/]+$/) && method === 'DELETE') {
+        const appId = pathname.split('/')[3];
+        response = await this.handleDeleteApp(appId);
       } else {
         response = { success: false, error: 'Not found' };
         res.writeHead(404);
@@ -198,17 +212,23 @@ export class ApiServer {
     if (!this.tabManager) {
       return { success: false, error: 'TabManager not initialized' };
     }
-    const { url, appId = 'api', configId, configName } = body;
+    const { url, appId, configId, configName, name } = body;
     if (!url) {
       return { success: false, error: 'url is required' };
     }
-    const id = configId || `api_${Date.now()}`;
-    const tab = await this.tabManager.createTab(appId, url, id, configName || 'API Tab');
+
+    // 确保应用存在，不存在则自动创建
+    const appName = name || configName || appId || 'CLI App';
+    const app = AppStorage.ensureApp(appId || '', url, appName);
+
+    const id = configId || `tab_${app.id}_${Date.now()}`;
+    const tab = await this.tabManager.createTab(app.id, url, id, configName || app.name);
     return {
       success: true,
       data: {
         id: tab.id,
-        appId: tab.appId,
+        appId: app.id,
+        appName: app.name,
         url: tab.url,
         title: tab.title,
       },
@@ -386,6 +406,90 @@ export class ApiServer {
       success: result.success,
       data: result.success ? { message: result.message } : undefined,
       error: result.success ? undefined : result.message,
+    };
+  }
+
+  // GET /api/apps
+  private async handleListApps(): Promise<ApiResponse> {
+    const apps = AppStorage.getAllApps();
+    return {
+      success: true,
+      data: apps.map((app) => ({
+        id: app.id,
+        name: app.name,
+        url: app.url,
+        icon: app.icon,
+        color: app.color,
+        isFavorite: app.isFavorite,
+      })),
+    };
+  }
+
+  // GET /api/apps/:id
+  private async handleGetApp(appId: string): Promise<ApiResponse> {
+    const app = AppStorage.getAppById(appId);
+    if (!app) {
+      return { success: false, error: `App '${appId}' not found` };
+    }
+    return {
+      success: true,
+      data: {
+        id: app.id,
+        name: app.name,
+        url: app.url,
+        icon: app.icon,
+        color: app.color,
+        isFavorite: app.isFavorite,
+      },
+    };
+  }
+
+  // POST /api/apps
+  private async handleCreateApp(body: any): Promise<ApiResponse> {
+    const { name, url, icon, color } = body;
+    if (!name) {
+      return { success: false, error: 'name is required' };
+    }
+    if (!url) {
+      return { success: false, error: 'url is required' };
+    }
+
+    // 检查是否已存在同名应用
+    const existing = AppStorage.getAppByName(name);
+    if (existing) {
+      return { success: false, error: `App '${name}' already exists with id '${existing.id}'` };
+    }
+
+    const id = AppStorage.generateAppId(name);
+    const app = AppStorage.saveApp({
+      id,
+      name,
+      url,
+      icon: icon || '',
+      color,
+      isFavorite: false,
+    });
+
+    return {
+      success: true,
+      data: {
+        id: app.id,
+        name: app.name,
+        url: app.url,
+        icon: app.icon,
+        color: app.color,
+        message: `App '${app.name}' created`,
+      },
+    };
+  }
+
+  // DELETE /api/apps/:id
+  private async handleDeleteApp(appId: string): Promise<ApiResponse> {
+    const result = AppStorage.deleteApp(appId);
+    return {
+      success: result,
+      data: result ? { deleted: appId } : undefined,
+      error: result ? undefined : `App '${appId}' not found`,
     };
   }
 }
