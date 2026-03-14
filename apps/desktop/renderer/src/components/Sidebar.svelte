@@ -209,14 +209,14 @@
 
   .instance-item {
     position: relative;
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--bg-tertiary);
     border: 1px solid transparent;
-    border-radius: 10px;
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.15s ease;
     padding: 0;
@@ -225,31 +225,29 @@
   .instance-item:hover {
     background: var(--bg-hover);
     border-color: var(--border-hover);
-    transform: scale(1.05);
   }
 
   .instance-item.active {
     background: var(--accent-bg);
     border-color: var(--accent-primary);
-    box-shadow: 0 0 0 1px var(--accent-primary);
   }
 
   .instance-icon {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     object-fit: contain;
     border-radius: 4px;
   }
 
   .instance-placeholder {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--accent-bg);
-    border-radius: 6px;
-    font-size: 12px;
+    border-radius: 4px;
+    font-size: 10px;
     font-weight: 600;
     color: var(--accent-primary);
   }
