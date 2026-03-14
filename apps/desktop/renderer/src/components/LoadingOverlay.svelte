@@ -5,12 +5,27 @@
 <div class="loading-overlay">
   <div class="loading-content">
     <div class="loading-spinner">
-      <div class="spinner-ring"></div>
-      <div class="spinner-ring"></div>
-      <div class="spinner-ring"></div>
+      <svg class="spinner" viewBox="0 0 50 50">
+        <circle
+          class="spinner-track"
+          cx="25"
+          cy="25"
+          r="20"
+          fill="none"
+          stroke-width="3"
+        />
+        <circle
+          class="spinner-path"
+          cx="25"
+          cy="25"
+          r="20"
+          fill="none"
+          stroke-width="3"
+        />
+      </svg>
     </div>
     <div class="loading-text">
-      <h3>正在启动 {appName}...</h3>
+      <h3>正在启动 {appName}</h3>
       <p>请稍候</p>
     </div>
   </div>
@@ -23,14 +38,12 @@
     left: 0;
     right: 0;
     bottom: 0;
-
     height: 100%;
-    background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0f1419 100%);
+    background: var(--bg-primary);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 10000;
-    backdrop-filter: blur(10px);
     margin: 0;
     padding: 0;
   }
@@ -40,63 +53,63 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 24px;
+    gap: var(--spacing-xl);
   }
 
   .loading-spinner {
-    position: relative;
-    width: 80px;
-    height: 80px;
+    width: 48px;
+    height: 48px;
   }
 
-  .spinner-ring {
-    position: absolute;
+  .spinner {
     width: 100%;
     height: 100%;
-    border: 4px solid transparent;
-    border-top-color: #4facfe;
-    border-radius: 50%;
-    animation: spin 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+    animation: rotate 1.4s linear infinite;
   }
 
-  .spinner-ring:nth-child(1) {
-    animation-delay: -0.45s;
+  .spinner-track {
+    stroke: var(--border-primary);
   }
 
-  .spinner-ring:nth-child(2) {
-    animation-delay: -0.3s;
-    border-top-color: #00f2fe;
+  .spinner-path {
+    stroke: var(--text-primary);
+    stroke-linecap: round;
+    stroke-dasharray: 80, 200;
+    stroke-dashoffset: 0;
+    animation: dash 1.4s ease-in-out infinite;
   }
 
-  .spinner-ring:nth-child(3) {
-    animation-delay: -0.15s;
-    border-top-color: #4facfe;
-    opacity: 0.7;
-  }
-
-  @keyframes spin {
-    0% {
-      transform: rotate(0deg);
-    }
+  @keyframes rotate {
     100% {
       transform: rotate(360deg);
     }
   }
 
+  @keyframes dash {
+    0% {
+      stroke-dasharray: 1, 200;
+      stroke-dashoffset: 0;
+    }
+    50% {
+      stroke-dasharray: 80, 200;
+      stroke-dashoffset: -35;
+    }
+    100% {
+      stroke-dasharray: 80, 200;
+      stroke-dashoffset: -125;
+    }
+  }
+
   .loading-text h3 {
-    margin: 0 0 8px 0;
-    font-size: 20px;
-    font-weight: 600;
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    margin: 0 0 var(--spacing-sm) 0;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-primary);
   }
 
   .loading-text p {
     margin: 0;
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.5);
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
   }
 </style>
-

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import './styles/theme.css';
   import TitleBar from './components/TitleBar.svelte';
   import Sidebar from './components/Sidebar.svelte';
   import AppGrid from './components/AppGrid.svelte';
@@ -10,6 +11,8 @@
   import AIConfigModal from './components/AIConfigModal.svelte';
   import RightPanel from './components/RightPanel.svelte';
   import DownloadListPanel from './components/panels/DownloadListPanel.svelte';
+  import ThemeProvider from './components/ThemeProvider.svelte';
+  import type { Theme } from './components/ThemeProvider.svelte';
   import { onMount } from 'svelte';
   import { getAppById } from './utils/app-storage';
   import { saveConfig, getAllConfigs, getConfigsByAppId, updateLastUsed } from './utils/browser-config-storage';
@@ -39,6 +42,11 @@
   let showAIConfigModal = false;
   let currentProvider = getCurrentProvider();
   let aiConfig: AIConfig = loadAIConfig(currentProvider);
+
+  // 主题相关
+  let themeProvider: ThemeProvider;
+  let currentTheme: Theme = 'system';
+  let resolvedTheme: 'light' | 'dark' = 'dark';
   
   // 当服务商变化时，重新加载配置
   $: if (currentProvider) {
@@ -435,8 +443,17 @@
   }
 </script>
 
+<ThemeProvider
+  bind:this={themeProvider}
+  bind:theme={currentTheme}
+  on:change={(e) => {
+    currentTheme = e.detail.theme;
+    resolvedTheme = e.detail.resolved;
+  }}
+  let:toggleTheme
+>
 <main>
-  <TitleBar />
+  <TitleBar {currentTheme} {resolvedTheme} on:toggleTheme={toggleTheme} />
   
   <div class="app-container">
     <Sidebar 
@@ -547,12 +564,13 @@
     on:close={() => showAIConfigModal = false}
   />
 </main>
+</ThemeProvider>
 
 <style>
   :global(body) {
     margin: 0;
     padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: var(--font-family);
     overflow: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -562,8 +580,8 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
-    background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0f1419 100%);
-    color: #fff;
+    background: var(--bg-primary);
+    color: var(--text-primary);
     position: relative;
     overflow: hidden;
   }
@@ -594,12 +612,12 @@
     display: flex;
     overflow: hidden;
     position: relative;
-    background: rgba(26, 31, 58, 0.95);
+    background: var(--bg-secondary);
   }
 
   .browser-container {
     flex: 1;
-    background: #000;
+    background: var(--bg-primary);
     position: relative;
     display: flex;
     align-items: center;
@@ -607,19 +625,6 @@
     height: 100%;
     overflow: hidden;
     z-index: 1;
-  }
-
-  main::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: 
-      radial-gradient(circle at 20% 50%, rgba(79, 172, 254, 0.1) 0%, transparent 50%),
-      radial-gradient(circle at 80% 80%, rgba(0, 242, 254, 0.1) 0%, transparent 50%);
-    pointer-events: none;
   }
 
   .content-area {
@@ -647,116 +652,30 @@
   }
 
   .apps-view::-webkit-scrollbar-thumb {
-    background: rgba(79, 172, 254, 0.3);
-    border-radius: 4px;
+    background: var(--scrollbar-thumb);
+    border-radius: var(--radius-sm);
   }
 
   .apps-view::-webkit-scrollbar-thumb:hover {
-    background: rgba(79, 172, 254, 0.5);
+    background: var(--scrollbar-thumb-hover);
   }
 
   .view-header {
-    padding: 40px 32px 24px;
-    border-bottom: 1px solid rgba(79, 172, 254, 0.1);
+    padding: var(--spacing-2xl) var(--spacing-2xl) var(--spacing-xl);
+    border-bottom: 1px solid var(--border-primary);
   }
 
   .view-header h2 {
-    margin: 0 0 8px 0;
-    font-size: 32px;
-    font-weight: 700;
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    margin: 0 0 var(--spacing-sm) 0;
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
   }
 
   .subtitle {
     margin: 0;
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.5);
-    font-weight: 400;
+    font-size: var(--font-size-base);
+    color: var(--text-tertiary);
+    font-weight: var(--font-weight-normal);
   }
-
-  .saved-browsers-section {
-    margin-top: 40px;
-    padding: 0 32px 32px;
-  }
-
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-  }
-
-  .section-header h3 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.8);
-  }
-
-  .count {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.4);
-  }
-
-  .saved-browsers-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 12px;
-  }
-
-  .saved-browser-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(79, 172, 254, 0.1);
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .saved-browser-item:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(79, 172, 254, 0.3);
-    transform: translateY(-2px);
-  }
-
-  .browser-item-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 18px;
-    color: white;
-    flex-shrink: 0;
-  }
-
-  .browser-item-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .browser-item-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
-    margin-bottom: 4px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .browser-item-meta {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.4);
-  }
-
 </style>

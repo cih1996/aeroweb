@@ -3,13 +3,19 @@
   import MaximizeIcon from './icons/MaximizeIcon.svelte';
   import CloseIcon from './icons/CloseIcon.svelte';
   import RestoreIcon from './icons/RestoreIcon.svelte';
-  import { onMount } from 'svelte';
+  import ThemeToggle from './ThemeToggle.svelte';
+  import type { Theme } from './ThemeProvider.svelte';
+  import { onMount, createEventDispatcher } from 'svelte';
+
+  export let currentTheme: Theme = 'system';
+  export let resolvedTheme: 'light' | 'dark' = 'dark';
+
+  const dispatch = createEventDispatcher();
 
   let isMaximized = false;
   let isMac = false;
 
   onMount(() => {
-    // 检测是否为 Mac 系统
     isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
   });
 
@@ -25,42 +31,60 @@
   async function handleClose() {
     await window.electronAPI.window.close();
   }
+
+  function handleToggleTheme() {
+    dispatch('toggleTheme');
+  }
 </script>
 
 <div class="title-bar" data-tauri-drag-region class:mac={isMac}>
   <div class="title-bar-left">
-    <img src="./logo.svg" alt="奇易聚合浏览AI+" class="title-bar-logo" />
-    <div class="app-name">奇易聚合浏览AI+</div>
+    <img src="./logo.svg" alt="PolyWebsAI" class="title-bar-logo" />
+    <div class="app-name">PolyWebsAI</div>
   </div>
-  
-  {#if !isMac}
-    <div class="title-bar-right">
-      <button class="title-bar-button" on:click={handleMinimize} title="最小化">
-        <MinimizeIcon />
-      </button>
-      <button class="title-bar-button" on:click={handleMaximize} title={isMaximized ? '还原' : '最大化'}>
-        {#if isMaximized}
-          <RestoreIcon />
-        {:else}
-          <MaximizeIcon />
-        {/if}
-      </button>
-      <button class="title-bar-button close" on:click={handleClose} title="关闭">
-        <CloseIcon />
-      </button>
+
+  <div class="title-bar-center">
+    <!-- 可扩展区域 -->
+  </div>
+
+  <div class="title-bar-right">
+    <div class="title-bar-actions">
+      <ThemeToggle
+        theme={currentTheme}
+        {resolvedTheme}
+        on:toggle={handleToggleTheme}
+      />
     </div>
-  {/if}
+
+    {#if !isMac}
+      <div class="window-controls">
+        <button class="window-button" on:click={handleMinimize} title="最小化">
+          <MinimizeIcon />
+        </button>
+        <button class="window-button" on:click={handleMaximize} title={isMaximized ? '还原' : '最大化'}>
+          {#if isMaximized}
+            <RestoreIcon />
+          {:else}
+            <MaximizeIcon />
+          {/if}
+        </button>
+        <button class="window-button close" on:click={handleClose} title="关闭">
+          <CloseIcon />
+        </button>
+      </div>
+    {/if}
+  </div>
 </div>
 
 <style>
   .title-bar {
-    height: 40px;
-    background: linear-gradient(180deg, rgba(10, 14, 39, 0.95) 0%, rgba(26, 31, 58, 0.95) 100%);
-    border-bottom: 1px solid rgba(79, 172, 254, 0.2);
+    height: var(--titlebar-height);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-primary);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 12px;
+    padding: 0 var(--spacing-md);
     -webkit-app-region: drag;
     user-select: none;
     position: relative;
@@ -68,18 +92,14 @@
   }
 
   .title-bar.mac {
-    justify-content: center;
+    padding-left: 80px;
   }
 
   .title-bar-left {
     display: flex;
     align-items: center;
-    gap: 8px;
-  }
-
-  .title-bar.mac .title-bar-left {
-    justify-content: center;
-    width: 100%;
+    gap: var(--spacing-sm);
+    flex-shrink: 0;
   }
 
   .title-bar-logo {
@@ -89,23 +109,37 @@
   }
 
   .app-name {
-    font-size: 13px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.9);
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+  }
+
+  .title-bar-center {
+    flex: 1;
   }
 
   .title-bar-right {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: var(--spacing-sm);
     -webkit-app-region: no-drag;
   }
 
-  .title-bar-button {
+  .title-bar-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+  }
+
+  .window-controls {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-left: var(--spacing-sm);
+  }
+
+  .window-button {
     width: 32px;
     height: 32px;
     display: flex;
@@ -113,23 +147,20 @@
     justify-content: center;
     background: transparent;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
-    color: rgba(255, 255, 255, 0.7);
-    transition: all 0.2s;
+    color: var(--text-secondary);
+    transition: all var(--transition-fast);
     padding: 0;
   }
 
-  .title-bar-button:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.9);
+  .window-button:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
-  .title-bar-button.close:hover {
-    background: #e81123;
+  .window-button.close:hover {
+    background: var(--color-error);
     color: white;
   }
-
-
 </style>
-

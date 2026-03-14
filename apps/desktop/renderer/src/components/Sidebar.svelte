@@ -6,15 +6,14 @@
   import { getAllApps } from '../utils/app-storage';
   import type { AppConfig } from '../types/app-config';
   import DownloadIcon from './icons/DownloadIcon.svelte';
-  
-  export let activeView: 'apps' | 'my-apps' | string = 'apps'; // 'apps', 'my-apps' 或 appId
+
+  export let activeView: 'apps' | 'my-apps' | string = 'apps';
   export let tabs: any[] = [];
 
   const dispatch = createEventDispatcher();
 
   let appConfigs: AppConfig[] = [];
 
-  // 按应用 ID 分组 tabs
   $: appGroups = tabs.reduce((acc, tab) => {
     if (!acc[tab.appId]) {
       acc[tab.appId] = [];
@@ -23,7 +22,6 @@
     return acc;
   }, {} as Record<string, any[]>);
 
-  // 获取已打开的应用列表（去重）
   $: openedAppIds = Object.keys(appGroups);
 
   onMount(async () => {
@@ -49,26 +47,18 @@
 </script>
 
 <aside class="sidebar">
-  <div class="sidebar-header">
-    <div class="logo">
-      <img src="./logo.svg" alt="奇易聚合浏览AI+" class="logo-icon" />
-    </div>
-    <div class="app-title">
-      <h1>奇易聚合浏览AI+</h1>
-      <span class="version">V1.0.0</span>
-    </div>
-  </div>
-
   <nav class="sidebar-nav">
-    <button 
-      class="nav-item {activeView === 'apps' ? 'active' : ''}"
+    <button
+      class="nav-item"
+      class:active={activeView === 'apps'}
       on:click={() => handleViewChange('apps')}
     >
       <HomeIcon />
       <span>应用中心</span>
     </button>
-    <button 
-      class="nav-item {activeView === 'my-apps' ? 'active' : ''}"
+    <button
+      class="nav-item"
+      class:active={activeView === 'my-apps'}
       on:click={() => handleViewChange('my-apps')}
     >
       <MyAppsIcon />
@@ -78,31 +68,30 @@
 
   {#if openedAppIds.length > 0}
     <div class="opened-apps">
-      <div class="opened-apps-header">
-        <span class="opened-apps-title">已打开</span>
-      </div>
+      <div class="section-label">已打开</div>
       <div class="opened-apps-list">
         {#each openedAppIds as appId (appId)}
           {@const appConfig = getAppConfig(appId)}
           {@const tabCount = getAppTabCount(appId)}
           <button
-            class="app-item {activeView === appId ? 'active' : ''}"
+            class="app-item"
+            class:active={activeView === appId}
             on:click={() => handleAppClick(appId)}
             title={appConfig?.name || appId}
           >
             {#if appConfig?.icon}
-              <img 
-                src={appConfig.icon} 
+              <img
+                src={appConfig.icon}
                 alt={appConfig.name}
-                class="app-item-icon"
+                class="app-icon"
               />
             {:else}
-              <div class="app-item-icon-placeholder">
+              <div class="app-icon-placeholder">
                 {appId.charAt(0).toUpperCase()}
               </div>
             {/if}
             {#if tabCount > 1}
-              <span class="app-item-badge">{tabCount}</span>
+              <span class="badge">{tabCount}</span>
             {/if}
           </button>
         {/each}
@@ -111,112 +100,60 @@
   {/if}
 
   <div class="sidebar-footer">
-    <button class="footer-button download-button" on:click={() => dispatch('openDownloadList')}>
+    <button class="footer-btn" on:click={() => dispatch('openDownloadList')}>
       <DownloadIcon />
-      <span>下载列表</span>
+      <span>下载</span>
     </button>
-    <button class="footer-button ai-button" on:click={() => dispatch('openAIConfig')}>
+    <button class="footer-btn" on:click={() => dispatch('openAIConfig')}>
       <AIIcon />
-      <span>AI 设置</span>
+      <span>AI</span>
     </button>
   </div>
 </aside>
 
 <style>
   .sidebar {
-    width: 240px;
+    width: var(--sidebar-width);
     height: 100%;
-    background: linear-gradient(180deg, #0a0e27 0%, #1a1f3a 100%);
-    border-right: 1px solid rgba(79, 172, 254, 0.2);
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-primary);
     display: flex;
     flex-direction: column;
     position: relative;
-    overflow: hidden;
-  }
-
-  .sidebar::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(79, 172, 254, 0.5), transparent);
-  }
-
-  .sidebar-header {
-    padding: 24px 20px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    border-bottom: 1px solid rgba(79, 172, 254, 0.1);
-  }
-
-  .logo {
-    width: 40px;
-    height: 40px;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .logo-icon {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
-
-  .app-title h1 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 700;
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .version {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
-    font-weight: 400;
   }
 
   .sidebar-nav {
-    padding: 16px 12px;
+    padding: var(--spacing-lg) var(--spacing-md);
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    flex: 1;
+    gap: var(--spacing-xs);
   }
 
   .nav-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
     background: transparent;
     border: none;
-    border-radius: 8px;
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 14px;
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: var(--font-size-base);
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all var(--transition-fast);
     position: relative;
     text-align: left;
     width: 100%;
   }
 
   .nav-item:hover {
-    background: rgba(79, 172, 254, 0.1);
-    color: rgba(255, 255, 255, 0.9);
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 
   .nav-item.active {
-    background: linear-gradient(90deg, rgba(79, 172, 254, 0.2) 0%, rgba(79, 172, 254, 0.05) 100%);
-    color: #4facfe;
-    box-shadow: 0 0 20px rgba(79, 172, 254, 0.2);
+    background: var(--accent-bg);
+    color: var(--text-primary);
   }
 
   .nav-item.active::before {
@@ -227,32 +164,32 @@
     transform: translateY(-50%);
     width: 3px;
     height: 60%;
-    background: linear-gradient(180deg, #4facfe 0%, #00f2fe 100%);
+    background: var(--accent-primary);
     border-radius: 0 2px 2px 0;
   }
 
   .opened-apps {
-    padding: 16px 12px;
-    border-top: 1px solid rgba(79, 172, 254, 0.1);
-    border-bottom: 1px solid rgba(79, 172, 254, 0.1);
+    flex: 1;
+    padding: var(--spacing-lg) var(--spacing-md);
+    border-top: 1px solid var(--border-secondary);
+    overflow-y: auto;
   }
 
-  .opened-apps-header {
-    margin-bottom: 12px;
-  }
-
-  .opened-apps-title {
-    font-size: 11px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.4);
+  .section-label {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    margin-bottom: var(--spacing-md);
+    padding: 0 var(--spacing-sm);
   }
 
   .opened-apps-list {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    justify-content: center;
   }
 
   .app-item {
@@ -260,116 +197,87 @@
     width: 48px;
     height: 48px;
     padding: 0;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(79, 172, 254, 0.1);
-    border-radius: 10px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border-secondary);
+    border-radius: var(--radius-lg);
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all var(--transition-fast);
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 0 auto;
   }
 
   .app-item:hover {
-    background: rgba(79, 172, 254, 0.1);
-    border-color: rgba(79, 172, 254, 0.3);
+    background: var(--bg-active);
+    border-color: var(--border-hover);
     transform: translateY(-2px);
   }
 
   .app-item.active {
-    background: linear-gradient(135deg, rgba(79, 172, 254, 0.2) 0%, rgba(0, 242, 254, 0.2) 100%);
-    border-color: rgba(79, 172, 254, 0.4);
-    box-shadow: 0 0 20px rgba(79, 172, 254, 0.3);
+    background: var(--accent-bg);
+    border-color: var(--accent-primary);
+    box-shadow: var(--shadow-glow);
   }
 
-  .app-item-icon {
-    width: 32px;
-    height: 32px;
+  .app-icon {
+    width: 28px;
+    height: 28px;
     object-fit: contain;
   }
 
-  .app-item-icon-placeholder {
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  .app-icon-placeholder {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    background: var(--accent-bg);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
-    font-size: 16px;
-    color: white;
+    font-weight: var(--font-weight-bold);
+    font-size: var(--font-size-base);
+    color: var(--text-primary);
   }
 
-  .app-item-badge {
+  .badge {
     position: absolute;
     top: -4px;
     right: -4px;
-    background: #4facfe;
-    color: white;
+    background: var(--accent-primary);
+    color: var(--bg-primary);
     font-size: 10px;
-    font-weight: 700;
+    font-weight: var(--font-weight-bold);
     padding: 2px 6px;
     border-radius: 10px;
     min-width: 18px;
     text-align: center;
-    box-shadow: 0 2px 8px rgba(79, 172, 254, 0.4);
   }
 
   .sidebar-footer {
-    padding: 16px 12px;
-    border-top: 1px solid rgba(79, 172, 254, 0.1);
+    padding: var(--spacing-md);
+    border-top: 1px solid var(--border-secondary);
+    display: flex;
+    gap: var(--spacing-sm);
+  }
+
+  .footer-btn {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-  }
-
-  .footer-button {
-    width: 100%;
-    display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    background: linear-gradient(135deg, rgba(79, 172, 254, 0.2) 0%, rgba(0, 242, 254, 0.2) 100%);
-    border: 1px solid rgba(79, 172, 254, 0.3);
-    border-radius: 8px;
-    color: #4facfe;
-    font-size: 14px;
-    font-weight: 600;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-md);
+    background: var(--bg-hover);
+    border: 1px solid var(--border-secondary);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
     cursor: pointer;
-    transition: all 0.3s;
-    position: relative;
-    overflow: hidden;
+    transition: all var(--transition-fast);
   }
 
-  .footer-button::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-    transition: left 0.5s;
+  .footer-btn:hover {
+    background: var(--bg-active);
+    border-color: var(--border-hover);
+    color: var(--text-primary);
   }
-
-  .footer-button:hover::before {
-    left: 100%;
-  }
-
-  .footer-button:hover {
-    box-shadow: 0 0 20px rgba(79, 172, 254, 0.4);
-    transform: translateY(-1px);
-  }
-
-  .button-icon {
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
- 
 </style>
-

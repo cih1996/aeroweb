@@ -32,58 +32,48 @@
   }
 
   async function handleContextMenu(tabId: string, event: MouseEvent) {
-    console.log('[TabBar] handleContextMenu called for tabId:', tabId);
     event.preventDefault();
     event.stopPropagation();
     contextMenuTabId = tabId;
     contextMenuX = event.clientX;
     contextMenuY = event.clientY;
     showContextMenu = true;
-    // 临时隐藏 BrowserView，避免遮挡右键菜单
     try {
-      console.log('[TabBar] Calling temporarilyHide...');
       await window.electronAPI.view.temporarilyHide();
-      console.log('[TabBar] temporarilyHide completed');
     } catch (error) {
       console.error('[TabBar] 隐藏浏览器失败:', error);
     }
   }
 
   async function handleContextMenuAction(action: string) {
-    console.log('[TabBar] handleContextMenuAction called, action:', action, 'tabId:', contextMenuTabId);
     if (contextMenuTabId) {
       dispatch('contextMenuAction', { tabId: contextMenuTabId, action });
     }
     showContextMenu = false;
     contextMenuTabId = null;
-    // 注意：不在这里恢复 BrowserView，因为属性模态框打开时也需要隐藏
-    // 恢复会在模态框关闭时处理
   }
 
   async function handleClickOutside() {
-    console.log('[TabBar] handleClickOutside called');
     showContextMenu = false;
     contextMenuTabId = null;
-    // 恢复显示 BrowserView
     try {
-      console.log('[TabBar] Calling restoreHidden...');
       await window.electronAPI.view.restoreHidden();
-      console.log('[TabBar] restoreHidden completed');
     } catch (error) {
       console.error('[TabBar] 恢复浏览器失败:', error);
     }
   }
 </script>
 
-<div 
-  class="tab-bar" 
+<div
+  class="tab-bar"
   role="none"
   on:click|self={handleClickOutside}
 >
   {#each tabs as tab (tab.id)}
     {@const appConfig = getAppConfig(tab.appId)}
-    <div 
-      class="tab {tab.id === activeTabId ? 'active' : ''}"
+    <div
+      class="tab"
+      class:active={tab.id === activeTabId}
       role="button"
       tabindex="0"
       on:click={() => handleActivate(tab.id)}
@@ -96,8 +86,8 @@
       }}
     >
       {#if appConfig?.icon}
-        <img 
-          src={appConfig.icon} 
+        <img
+          src={appConfig.icon}
           alt={appConfig.name}
           class="tab-icon"
           on:error={(e) => {
@@ -109,18 +99,21 @@
         />
       {/if}
       <span class="tab-title">{tab.configName || tab.title || tab.appId}</span>
-      <button 
+      <button
         class="tab-close"
         on:click={(e) => handleClose(tab.id, e)}
       >
-        ×
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5">
+          <line x1="1" y1="1" x2="9" y2="9" />
+          <line x1="9" y1="1" x2="1" y2="9" />
+        </svg>
       </button>
     </div>
   {/each}
 </div>
 
 {#if showContextMenu && contextMenuTabId}
-  <div 
+  <div
     class="context-menu"
     role="menu"
     tabindex="-1"
@@ -132,12 +125,12 @@
       }
     }}
   >
-    <button 
+    <button
       class="context-menu-item"
       role="menuitem"
       on:click={() => handleContextMenuAction('properties')}
     >
-      <span>属性</span>
+      属性
     </button>
   </div>
 {/if}
@@ -147,8 +140,8 @@
     display: flex;
     gap: 0;
     padding: 0;
-    background: rgba(10, 14, 39, 0.8);
-    border-bottom: 1px solid rgba(79, 172, 254, 0.2);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-primary);
     overflow-x: auto;
     overflow-y: hidden;
     min-height: 36px;
@@ -163,23 +156,23 @@
   }
 
   .tab-bar::-webkit-scrollbar-thumb {
-    background: rgba(79, 172, 254, 0.3);
+    background: var(--scrollbar-thumb);
     border-radius: 2px;
   }
 
   .tab {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background: rgba(255, 255, 255, 0.05);
-    border-right: 1px solid rgba(79, 172, 254, 0.1);
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    background: var(--bg-hover);
+    border-right: 1px solid var(--border-secondary);
     cursor: pointer;
     min-width: 120px;
     max-width: 240px;
-    transition: all 0.2s;
+    transition: all var(--transition-fast);
     position: relative;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary);
   }
 
   .tab-icon {
@@ -190,24 +183,23 @@
   }
 
   .tab:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.9);
+    background: var(--bg-active);
+    color: var(--text-primary);
   }
 
   .tab.active {
-    background: rgba(79, 172, 254, 0.15);
-    color: rgba(255, 255, 255, 0.95);
-    border-bottom: 2px solid #4facfe;
+    background: var(--bg-primary);
+    color: var(--text-primary);
   }
 
-  .tab.active::before {
+  .tab.active::after {
     content: '';
     position: absolute;
-    top: 0;
+    bottom: 0;
     left: 0;
     right: 0;
     height: 2px;
-    background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+    background: var(--accent-primary);
   }
 
   .tab-title {
@@ -215,25 +207,23 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 13px;
-    font-weight: 500;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
   }
 
   .tab-close {
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-muted);
     cursor: pointer;
-    font-size: 16px;
-    line-height: 1;
-    padding: 2px;
-    width: 18px;
-    height: 18px;
+    padding: 4px;
+    width: 20px;
+    height: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 3px;
-    transition: all 0.2s;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
     opacity: 0;
   }
 
@@ -242,39 +232,36 @@
   }
 
   .tab-close:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.9);
+    background: var(--bg-active);
+    color: var(--text-primary);
   }
 
   .context-menu {
     position: fixed;
-    background: rgba(26, 31, 58, 0.95);
-    border: 1px solid rgba(79, 172, 254, 0.3);
-    border-radius: 8px;
-    padding: 4px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-xs);
+    box-shadow: var(--shadow-lg);
     z-index: 999999;
     min-width: 120px;
-    backdrop-filter: blur(10px);
-    pointer-events: auto;
   }
 
   .context-menu-item {
     width: 100%;
-    padding: 8px 12px;
+    padding: var(--spacing-sm) var(--spacing-md);
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.8);
-    font-size: 13px;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
     text-align: left;
     cursor: pointer;
-    border-radius: 4px;
-    transition: all 0.2s;
+    border-radius: var(--radius-sm);
+    transition: all var(--transition-fast);
   }
 
   .context-menu-item:hover {
-    background: rgba(79, 172, 254, 0.2);
-    color: rgba(255, 255, 255, 0.95);
+    background: var(--bg-hover);
+    color: var(--text-primary);
   }
 </style>
-
