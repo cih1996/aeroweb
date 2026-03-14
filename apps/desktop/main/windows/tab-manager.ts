@@ -697,12 +697,21 @@ export class TabManager {
 
     try {
       const dbg = view.webContents.debugger;
-      dbg.attach('1.3');
+      const wasAttached = dbg.isAttached();
+
+      if (!wasAttached) {
+        dbg.attach('1.3');
+      }
+
       const { data } = await dbg.sendCommand('Page.captureScreenshot', {
         format: 'png',
         captureBeyondViewport: false,
       });
-      dbg.detach();
+
+      if (!wasAttached) {
+        dbg.detach();
+      }
+
       return data; // CDP 返回的已经是 base64
     } catch (error) {
       console.error('[TabManager] Screenshot failed:', error);
