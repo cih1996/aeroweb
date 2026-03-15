@@ -76,11 +76,12 @@ tabCommand
   .description('打开新 Tab')
   .option('-n, --name <name>', '应用名称（不存在则自动创建）')
   .option('-a, --app <appId>', '关联到已有应用 ID')
+  .option('-s, --session <id>', '使用指定缓存/会话（默认: ai-default）')
   .option('-w, --wait <seconds>', '等待页面加载（秒）')
-  .option('-s, --screenshot <file>', '截图保存到文件')
+  .option('--screenshot <file>', '截图保存到文件')
   .action(async (url, o) => {
     try {
-      const tab = await client.createTab(url, o.name, o.app);
+      const tab = await client.createTab(url, o.name, o.app, o.session);
       setLastCreatedTab(tab.id);
 
       // 等待页面加载

@@ -120,8 +120,8 @@ class BrowserClient {
     return this.req<TabInfo[]>('GET', '/tabs');
   }
 
-  createTab(url: string, name?: string, appId?: string) {
-    return this.req<TabInfo>('POST', '/tabs', { url, name, appId });
+  createTab(url: string, name?: string, appId?: string, session?: string) {
+    return this.req<TabInfo>('POST', '/tabs', { url, name, appId, session });
   }
 
   closeTab(tabId: string) {

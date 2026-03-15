@@ -16,7 +16,8 @@ aeroweb status                   # 查看状态
 
 # 标签页操作
 aeroweb tabs                     # 列出所有标签页
-aeroweb tab new <URL>            # 打开新标签页
+aeroweb tab new <URL>            # 打开新标签页（默认使用 ai-default 缓存）
+aeroweb tab new <URL> -s <缓存ID> # 使用指定缓存打开
 aeroweb tab goto <tabId> <URL>   # 导航到 URL
 aeroweb tab close <tabId>        # 关闭标签页
 
@@ -44,6 +45,11 @@ aeroweb session open <sessionId>                  # 打开已有会话
 - 数字索引 - 如 `1`, `2`
 - 模糊匹配 - 如 `bilibili` 匹配包含该词的标签
 
+## 缓存说明
+- 不指定 `-s` 参数时，默认使用 `ai-default` 缓存
+- 同一缓存的标签页共享登录状态、Cookie 等
+- 需要隔离时，使用 `-s <唯一ID>` 指定不同缓存
+
 ## 常用场景
 
 ### 打开网页并截图
@@ -65,12 +71,10 @@ aeroweb tab exec @last -e "document.title"
 aeroweb tab exec @last -e "document.querySelector('h1').innerText"
 ```
 
-### 多账号登录
+### 多账号登录（使用不同缓存）
 ```bash
-aeroweb session new "账号A" "https://site.com" -o
+aeroweb tab new "https://site.com" -n "账号A" -s account-a
 # 登录账号 A...
-aeroweb session new "账号B" "https://site.com" -o
+aeroweb tab new "https://site.com" -n "账号B" -s account-b
 # 登录账号 B...
-# 之后可随时切换
-aeroweb session open 账号a
 ```

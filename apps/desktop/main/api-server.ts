@@ -235,25 +235,32 @@ export class ApiServer {
     if (!this.tabManager) {
       return { success: false, error: 'TabManager not initialized' };
     }
-    const { url, appId, configId, configName, name } = body;
+    const { url, appId, configId, configName, name, session: sessionParam } = body;
     if (!url) {
       return { success: false, error: 'url is required' };
     }
 
     // 确保应用存在，不存在则自动创建
     const appName = name || configName || appId || 'CLI App';
-    const app = AppStorage.ensureApp(appId || '', url, appName);
+    const appInfo = AppStorage.ensureApp(appId || '', url, appName);
 
-    const id = configId || `tab_${app.id}_${Date.now()}`;
-    const tab = await this.tabManager.createTab(app.id, url, id, configName || app.name);
+    // 缓存/会话 ID 优先级：
+    // 1. 显式传入的 configId 或 session 参数
+    // 2. 使用 AI 默认缓存 "ai-default"（确保 AI 创建的 tab 复用同一缓存）
+    const sessionId = configId || sessionParam || 'ai-default';
+    const tabConfigName = configName || appInfo.name;
+
+    const id = `tab_${appInfo.id}_${Date.now()}`;
+    const tab = await this.tabManager.createTab(appInfo.id, url, sessionId, tabConfigName);
     return {
       success: true,
       data: {
         id: tab.id,
-        appId: app.id,
-        appName: app.name,
+        appId: appInfo.id,
+        appName: appInfo.name,
         url: tab.url,
         title: tab.title,
+        session: sessionId,
       },
     };
   }
