@@ -44,16 +44,36 @@ program
   .command('start')
   .description('启动 AeroWeb 服务 (等同于 service start)')
   .option('-w, --wait', '等待服务就绪')
+  .option('-f, --force', '强制启动（清理占用端口）')
+  .option('--dev', '使用开发模式启动')
   .action(async (opts) => {
-    await serviceCommand.commands.find(c => c.name() === 'start')?.parseAsync(opts.wait ? ['-w'] : []);
+    const args: string[] = [];
+    if (opts.wait) args.push('-w');
+    if (opts.force) args.push('-f');
+    if (opts.dev) args.push('--dev');
+    await serviceCommand.commands.find(c => c.name() === 'start')?.parseAsync(args);
   });
 
 // 别名：stop = service stop
 program
   .command('stop')
   .description('停止 AeroWeb 服务 (等同于 service stop)')
-  .action(async () => {
-    await serviceCommand.commands.find(c => c.name() === 'stop')?.parseAsync([]);
+  .option('-f, --force', '强制停止所有相关进程')
+  .action(async (opts) => {
+    await serviceCommand.commands.find(c => c.name() === 'stop')?.parseAsync(opts.force ? ['-f'] : []);
+  });
+
+// 别名：restart = service restart
+program
+  .command('restart')
+  .description('重启 AeroWeb 服务 (等同于 service restart)')
+  .option('-f, --force', '强制重启')
+  .option('--dev', '使用开发模式')
+  .action(async (opts) => {
+    const args: string[] = [];
+    if (opts.force) args.push('-f');
+    if (opts.dev) args.push('--dev');
+    await serviceCommand.commands.find(c => c.name() === 'restart')?.parseAsync(args);
   });
 
 // 别名：status = service status
