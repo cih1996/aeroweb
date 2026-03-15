@@ -32,14 +32,30 @@ If you want your AI to browse the web like a human but faster and without popups
 
 ## Install
 
+### For AI Agents (One-liner)
+
+```bash
+# macOS / Linux
+curl -fsSL https://github.com/cih1996/aeroweb/releases/latest/download/aeroweb-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/x64/;s/aarch64/arm64/') -o /tmp/aeroweb && chmod +x /tmp/aeroweb && /tmp/aeroweb install
+
+# Windows (PowerShell)
+irm https://github.com/cih1996/aeroweb/releases/latest/download/aeroweb-windows.exe -OutFile $env:TEMP\aeroweb.exe; & $env:TEMP\aeroweb.exe install
+```
+
+After install, read [SKILL.md](./SKILL.md) for CLI usage guide.
+
+### Manual Download
+
 Download from [Releases](https://github.com/cih1996/aeroweb/releases):
 
-| Platform | Download |
-|----------|----------|
-| macOS (Apple Silicon) | `AeroWeb-x.x.x-arm64.dmg` |
-| macOS (Intel) | `AeroWeb-x.x.x-x64.dmg` |
-| Windows | `AeroWeb-x.x.x-x64.exe` |
-| Linux | `AeroWeb-x.x.x-x64.AppImage` |
+| Platform | CLI Binary | Desktop App |
+|----------|------------|-------------|
+| macOS (Apple Silicon) | `aeroweb-macos-arm64` | `AeroWeb-x.x.x-arm64.dmg` |
+| macOS (Intel) | `aeroweb-macos-x64` | `AeroWeb-x.x.x-x64.dmg` |
+| Windows | `aeroweb-windows.exe` | `AeroWeb-x.x.x-x64.exe` |
+| Linux | `aeroweb-linux` | `AeroWeb-x.x.x-x64.AppImage` |
+
+Double-click the CLI binary to auto-install to system PATH.
 
 ## Quick Start
 
