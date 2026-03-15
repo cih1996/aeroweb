@@ -11,18 +11,59 @@ tabCommand
   .command('list')
   .alias('ls')
   .description('列出所有 Tab')
-  .action(async () => {
+  .option('--tree', '树形显示（显示父子关系）')
+  .option('--flat', '平铺显示所有标签（包括子标签）')
+  .action(async (o) => {
     try {
       const tabs = await client.listTabs();
-      // 添加索引列
-      const tabsWithIndex = tabs.map((t, i) => ({
-        '#': i + 1,
-        id: t.id,
-        name: t.appName || t.appId,
-        title: t.title?.substring(0, 30) || '',
-        active: t.active ? '✓' : '',
-      }));
-      output.table(tabsWithIndex, ['#', 'id', 'name', 'title', 'active']);
+
+      if (o.tree) {
+        // 树形显示
+        const rootTabs = tabs.filter(t => !t.parentTabId);
+        const result: any[] = [];
+        let index = 1;
+
+        for (const root of rootTabs) {
+          result.push({
+            '#': index++,
+            id: root.id,
+            name: root.configName || root.appId,
+            title: root.title?.substring(0, 25) || '',
+            active: root.active ? '✓' : '',
+            children: root.childTabIds?.length || 0,
+          });
+
+          // 添加子标签
+          if (root.childTabIds) {
+            for (const childId of root.childTabIds) {
+              const child = tabs.find(t => t.id === childId);
+              if (child) {
+                result.push({
+                  '#': `  └ ${index++}`,
+                  id: child.id,
+                  name: child.configName || '子标签',
+                  title: child.title?.substring(0, 25) || '',
+                  active: child.active ? '✓' : '',
+                  children: '',
+                });
+              }
+            }
+          }
+        }
+        output.table(result, ['#', 'id', 'name', 'title', 'active', 'children']);
+      } else {
+        // 默认只显示根标签
+        const rootTabs = o.flat ? tabs : tabs.filter(t => !t.parentTabId);
+        const tabsWithIndex = rootTabs.map((t, i) => ({
+          '#': i + 1,
+          id: t.id,
+          name: t.configName || t.appId,
+          title: t.title?.substring(0, 30) || '',
+          active: t.active ? '✓' : '',
+          sub: t.childTabIds?.length ? `+${t.childTabIds.length}` : '',
+        }));
+        output.table(tabsWithIndex, ['#', 'id', 'name', 'title', 'active', 'sub']);
+      }
     } catch (e: any) {
       output.error(e.message);
       process.exit(1);

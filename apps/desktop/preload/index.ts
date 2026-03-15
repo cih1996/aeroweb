@@ -22,10 +22,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('tab:executeScript', { tabId, code }),
     openDevTools: (tabId: string) => 
       ipcRenderer.invoke('tab:openDevTools', { tabId }),
-    triggerFileUploadScan: (tabId: string, imagePaths?: string[]) => 
+    triggerFileUploadScan: (tabId: string, imagePaths?: string[]) =>
       ipcRenderer.invoke('tab:triggerFileUploadScan', { tabId, imagePaths }),
-    downloadUrl: (tabId: string, url: string) => 
-      ipcRenderer.invoke('tab:downloadUrl', { tabId, url })
+    downloadUrl: (tabId: string, url: string) =>
+      ipcRenderer.invoke('tab:downloadUrl', { tabId, url }),
+    // 导航相关
+    goBack: (tabId: string) => ipcRenderer.invoke('tab:goBack', { tabId }),
+    goForward: (tabId: string) => ipcRenderer.invoke('tab:goForward', { tabId }),
+    reload: (tabId: string) => ipcRenderer.invoke('tab:reload', { tabId }),
+    stop: (tabId: string) => ipcRenderer.invoke('tab:stop', { tabId }),
+    navigate: (tabId: string, url: string) => ipcRenderer.invoke('tab:navigate', { tabId, url }),
+    getNavigationState: (tabId: string) => ipcRenderer.invoke('tab:getNavigationState', { tabId }),
   },
 
   // 文件系统操作
@@ -44,10 +51,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 通用配置管理
   config: {
-    save: (namespace: string, key: string, config: any) => 
+    save: (namespace: string, key: string, config: any) =>
       ipcRenderer.invoke('config:save', { namespace, key, config }),
-    load: (namespace: string, key: string) => 
+    load: (namespace: string, key: string) =>
       ipcRenderer.invoke('config:load', { namespace, key }),
+  },
+
+  // Session 管理（持久化的浏览器会话）
+  session: {
+    list: () => ipcRenderer.invoke('session:list'),
+    get: (sessionId: string) => ipcRenderer.invoke('session:get', { sessionId }),
+    create: (name: string, url: string, note?: string) => ipcRenderer.invoke('session:create', { name, url, note }),
+    delete: (sessionId: string) => ipcRenderer.invoke('session:delete', { sessionId }),
+    open: (sessionId: string) => ipcRenderer.invoke('session:open', { sessionId }),
+  },
+
+  // 应用管理（与 CLI/API 共享数据）
+  app: {
+    list: () => ipcRenderer.invoke('app:list'),
+    get: (appId: string) => ipcRenderer.invoke('app:get', { appId }),
+    save: (app: any) => ipcRenderer.invoke('app:save', { app }),
+    delete: (appId: string) => ipcRenderer.invoke('app:delete', { appId }),
   },
 
   // Browser 操作
@@ -163,6 +187,19 @@ declare global {
       config: {
         save: (namespace: string, key: string, config: any) => Promise<{ success: boolean; error?: string }>;
         load: (namespace: string, key: string) => Promise<{ success: boolean; config: any | null; error?: string }>;
+      };
+      session: {
+        list: () => Promise<Array<{ id: string; name: string; url: string; icon?: string; color?: string; partition: string; lastUsedAt: number; isRunning?: boolean }>>;
+        get: (sessionId: string) => Promise<{ id: string; name: string; url: string; icon?: string; color?: string; partition: string; lastUsedAt: number } | null>;
+        create: (name: string, url: string) => Promise<{ id: string; name: string; url: string; partition: string }>;
+        delete: (sessionId: string) => Promise<boolean>;
+        open: (sessionId: string) => Promise<any>;
+      };
+      app: {
+        list: () => Promise<Array<{ id: string; name: string; url: string; icon: string; color?: string; isFavorite: boolean; order: number; createdAt: number; updatedAt: number }>>;
+        get: (appId: string) => Promise<{ id: string; name: string; url: string; icon: string; color?: string; isFavorite: boolean } | null>;
+        save: (app: { id: string; name: string; url: string; icon?: string; color?: string; isFavorite?: boolean }) => Promise<any>;
+        delete: (appId: string) => Promise<boolean>;
       };
       network: {
         addRule: (tabId: string, rule: { id: string; pattern: string; enabled: boolean }) => Promise<{ success: boolean }>;

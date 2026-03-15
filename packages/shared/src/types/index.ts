@@ -15,6 +15,8 @@ export interface Tab {
   createdAt: number;
   configId?: string; // 浏览器配置 ID
   configName?: string; // 用户自定义的配置名称（用于显示）
+  parentTabId?: string; // 父标签页 ID（用于子标签页）
+  childTabIds?: string[]; // 子标签页 ID 列表
 }
 
 export interface Session {

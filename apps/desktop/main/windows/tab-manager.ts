@@ -37,19 +37,42 @@ export class TabManager {
     this.downloadManager = downloadManager;
   }
 
-  async createTab(appId: string, url: string, configId?: string, configName?: string): Promise<Tab> {
-    const tabId = `tab_${configId}`;
-    const partitionKey = `config_${configId}`;
-    const partitionId = `persist:${partitionKey}`;
-    const tabSession = session.fromPartition(partitionId);
-    
-    // 为独立的 session 设置 User-Agent
-    const chromeUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
-    tabSession.setUserAgent(chromeUA);
-    
+  async createTab(appId: string, url: string, configId?: string, configName?: string, parentTabId?: string): Promise<Tab> {
+    // 如果没有 configId，生成一个唯一的
+    const sessionId = configId || `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // 子标签页使用不同的 ID 格式
+    const tabId = parentTabId
+      ? `subtab_${sessionId}_${Date.now()}`
+      : `tab_${sessionId}`;
+
+    // 子标签页继承父标签页的 partition（共享缓存/登录状态）
+    let partitionId: string;
+    let tabSession: Electron.Session;
+
+    if (parentTabId) {
+      const parentSession = this.sessions.get(parentTabId);
+      if (parentSession) {
+        tabSession = parentSession;
+        // 从父标签获取 partition
+        const parentTab = this.tabs.get(parentTabId);
+        partitionId = `persist:${parentTab?.configId || sessionId}`;
+      } else {
+        partitionId = `persist:${sessionId}`;
+        tabSession = session.fromPartition(partitionId);
+      }
+    } else {
+      partitionId = `persist:${sessionId}`;
+      tabSession = session.fromPartition(partitionId);
+
+      // 为独立的 session 设置 User-Agent
+      const chromeUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+      tabSession.setUserAgent(chromeUA);
+    }
+
     // 存储 session 引用，以便后续清理
     this.sessions.set(tabId, tabSession);
-    
+
     // 创建 BrowserView，使用独立的 session
     const view = new BrowserView({
       webPreferences: {
@@ -59,41 +82,32 @@ export class TabManager {
         partition: partitionId, // 使用独立的 session partition，实现完全隔离
       },
     });
-    
-    // 只拦截同一个顶级域名的新窗口打开，改为在当前窗口中跳转
-    const getTopLevelDomain = (inputUrl: string) => {
-      try {
-        const { hostname } = new URL(inputUrl);
-        // 提取主域名（如 seller.kuajingmaihuo.com -> kuajingmaihuo.com）
-        const parts = hostname.split('.').reverse();
-        if (parts.length >= 2) {
-          return parts[1] + '.' + parts[0];
-        }
-        return hostname;
-      } catch (e) {
-        return '';
-      }
-    };
 
-    const initialUrl = url;
-    const initialTld = getTopLevelDomain(initialUrl);
-
+    // 拦截所有新窗口请求，创建为子标签页
+    const currentTabId = tabId;
     view.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
-      const targetTld = getTopLevelDomain(targetUrl);
-      if (initialTld && targetTld && initialTld === targetTld) {
-        console.log('[TabManager] 拦截同主域新窗口打开请求，URL:', targetUrl);
-        setTimeout(() => {
-          view.webContents.loadURL(targetUrl).catch((error) => {
-            if (error.code !== 'ERR_ABORTED') {
-              console.error('[TabManager] 加载新 URL 失败:', error);
-            }
-          });
-        }, 0);
-        return { action: 'deny' };
-      } else {
-        // 不同域名的弹窗允许单独打开
-        return { action: 'allow' };
-      }
+      console.log('[TabManager] 拦截新窗口打开请求，创建子标签页，URL:', targetUrl);
+
+      // 异步创建子标签页
+      setTimeout(async () => {
+        try {
+          // 获取当前标签的根标签（如果当前是子标签，找到最顶层的父标签）
+          const rootTabId = this.getRootTabId(currentTabId);
+          const rootTab = this.tabs.get(rootTabId);
+
+          await this.createTab(
+            rootTab?.appId || 'popup',
+            targetUrl,
+            rootTab?.configId, // 继承 configId 以共享缓存
+            `弹窗: ${new URL(targetUrl).hostname}`,
+            rootTabId // 设置父标签
+          );
+        } catch (error) {
+          console.error('[TabManager] 创建子标签页失败:', error);
+        }
+      }, 0);
+
+      return { action: 'deny' };
     });
 
     // 初始化文件上传拦截器
@@ -148,30 +162,50 @@ export class TabManager {
 
     
     // 设置视图位置和大小（为侧边栏和标题栏预留空间）
-    this.updateViewBounds(view);
+    // 子标签页需要额外预留子标签栏高度
+    this.updateViewBounds(view, parentTabId ? true : false);
 
     // 先创建 tab 对象（用于立即返回）
     const tab: Tab = {
       id: tabId,
       appId,
       url,
-      title: appId,
+      title: configName || appId,
       active: false,
       createdAt: Date.now(),
       configId,
       configName,
+      parentTabId,
+      childTabIds: [],
     };
 
     this.tabs.set(tabId, tab);
     this.views.set(tabId, view);
 
+    // 如果是子标签页，更新父标签的 childTabIds
+    if (parentTabId) {
+      const parentTab = this.tabs.get(parentTabId);
+      if (parentTab) {
+        if (!parentTab.childTabIds) {
+          parentTab.childTabIds = [];
+        }
+        parentTab.childTabIds.push(tabId);
+        // 通知前端更新
+        this.mainWindow.webContents.send('tab:update', {
+          tabId: parentTabId,
+          updates: { childTabIds: parentTab.childTabIds }
+        });
+      }
+    }
+
     // 初始化控制台日志存储
     this.consoleLogs.set(tabId, []);
 
-    console.log(tabId)
-
     // 监听控制台消息
     view.webContents.on('console-message', (event, level, message, line, sourceId) => {
+      // 检查 tab 是否还存在（防止销毁后触发）
+      if (!this.tabs.has(tabId)) return;
+
       const levelMap: Record<number, ConsoleLogEntry['level']> = {
         0: 'debug',
         1: 'log',
@@ -200,6 +234,9 @@ export class TabManager {
 
     // 监听标题变化
     view.webContents.on('page-title-updated', (_, title) => {
+      // 检查 tab 是否还存在（防止销毁后触发）
+      if (!this.tabs.has(tabId)) return;
+
       const tab = this.tabs.get(tabId);
       if (tab) {
         tab.title = title;
@@ -209,28 +246,35 @@ export class TabManager {
 
     // 监听页面加载完成（每次导航后都会触发）
     const handlePageLoad = async () => {
+      // 检查 tab 是否还存在（防止销毁后触发）
+      if (!this.tabs.has(tabId)) return;
+      if (view.webContents.isDestroyed()) return;
+
       // 通知渲染进程页面加载完成（只在主框架加载时通知）
       if (view.webContents.getURL() && !view.webContents.getURL().startsWith('about:')) {
         this.mainWindow.webContents.send('tab:loaded', { tabId });
       }
-      
+
       // 注入 JS（通过 Browser Service）
       try {
         await this.browserService.injectScript(tabId, view.webContents);
       } catch (error) {
         console.error('注入脚本失败:', error);
       }
-      
+
     };
 
     // 监听主框架加载完成
     view.webContents.on('did-finish-load', handlePageLoad);
-    
+
     // 监听 iframe 加载完成（确保所有框架都注入脚本）
     view.webContents.on('did-frame-finish-load', handlePageLoad);
 
     // 监听加载错误
     view.webContents.once('did-fail-load', (event, errorCode, errorDescription) => {
+      // 检查 tab 是否还存在（防止销毁后触发）
+      if (!this.tabs.has(tabId)) return;
+
       console.error('页面加载失败:', errorCode, errorDescription);
       this.mainWindow.webContents.send('tab:error', { tabId, error: errorDescription });
     });
@@ -248,8 +292,29 @@ export class TabManager {
   }
 
   async closeTab(tabId: string): Promise<boolean> {
+    const tab = this.tabs.get(tabId);
     const view = this.views.get(tabId);
-    
+
+    // 如果有子标签页，先关闭所有子标签页
+    if (tab?.childTabIds && tab.childTabIds.length > 0) {
+      for (const childId of [...tab.childTabIds]) {
+        await this.closeTab(childId);
+      }
+    }
+
+    // 如果是子标签页，从父标签的 childTabIds 中移除
+    if (tab?.parentTabId) {
+      const parentTab = this.tabs.get(tab.parentTabId);
+      if (parentTab?.childTabIds) {
+        parentTab.childTabIds = parentTab.childTabIds.filter(id => id !== tabId);
+        // 通知前端更新
+        this.mainWindow.webContents.send('tab:update', {
+          tabId: tab.parentTabId,
+          updates: { childTabIds: parentTab.childTabIds }
+        });
+      }
+    }
+
     // 清理文件上传拦截器
     const interceptor = this.fileUploadInterceptors.get(tabId);
     if (interceptor) {
@@ -264,14 +329,17 @@ export class TabManager {
         this.mainWindow.setBrowserView(null);
         this.activeTabId = null;
       }
-      
+
       // 显式关闭 webContents，确保彻底关闭页面（停止视频播放、网络请求等）
       try {
         const webContents = view.webContents;
-        
+
+        // 先移除所有事件监听器，防止销毁后触发回调
+        webContents.removeAllListeners();
+
         // 停止所有正在进行的加载
         webContents.stop();
-        
+
         // 关闭 webContents（这会停止所有 JavaScript 执行、网络请求、视频播放等）
         // 注意：close() 方法会触发 'destroyed' 事件，之后 webContents 将不再可用
         if (!webContents.isDestroyed()) {
@@ -316,7 +384,7 @@ export class TabManager {
     console.log('[TabManager] activateTab called, tabId:', tabId);
     const tab = this.tabs.get(tabId);
     const view = this.views.get(tabId);
-    
+
     if (!tab || !view) {
       console.error('[TabManager] Tab or view not found for tabId:', tabId);
       return false;
@@ -336,18 +404,36 @@ export class TabManager {
     console.log('[TabManager] Setting BrowserView for tabId:', tabId);
     this.mainWindow.setBrowserView(view);
 
-    // 更新视图大小
-    this.updateViewBounds(view);
+    // 检查是否需要显示子标签栏
+    const rootTabId = this.getRootTabId(tabId);
+    const hasSubTabs = this.hasSubTabs(rootTabId);
 
-    // 通知渲染进程
-    this.mainWindow.webContents.send('tab:activate', { tabId });
+    // 更新视图大小
+    this.updateViewBounds(view, hasSubTabs);
+
+    // 通知渲染进程（包含父子关系信息）
+    this.mainWindow.webContents.send('tab:activate', {
+      tabId,
+      parentTabId: tab.parentTabId,
+      rootTabId,
+      hasSubTabs,
+    });
     console.log('[TabManager] Tab activated, activeTabId:', this.activeTabId);
+
+    return true;
 
     return true;
   }
 
   async listTabs(): Promise<Tab[]> {
     return Array.from(this.tabs.values());
+  }
+
+  /**
+   * 获取所有 tabs 的 Map（用于检查运行状态）
+   */
+  getTabs(): Map<string, Tab> {
+    return this.tabs;
   }
 
   /**
@@ -390,39 +476,125 @@ export class TabManager {
   }
 
   /**
-   * 更新单个视图的边界（用于窗口大小变化时调用）
+   * 后退
    */
-  private updateViewBounds(view: BrowserView) {
+  goBack(tabId: string): boolean {
+    const view = this.views.get(tabId);
+    if (view && view.webContents.canGoBack()) {
+      view.webContents.goBack();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 前进
+   */
+  goForward(tabId: string): boolean {
+    const view = this.views.get(tabId);
+    if (view && view.webContents.canGoForward()) {
+      view.webContents.goForward();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 停止加载
+   */
+  stop(tabId: string): boolean {
+    const view = this.views.get(tabId);
+    if (view) {
+      view.webContents.stop();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 获取导航状态
+   */
+  getNavigationState(tabId: string): { canGoBack: boolean; canGoForward: boolean; isLoading: boolean; url: string } | null {
+    const view = this.views.get(tabId);
+    if (view) {
+      return {
+        canGoBack: view.webContents.canGoBack(),
+        canGoForward: view.webContents.canGoForward(),
+        isLoading: view.webContents.isLoading(),
+        url: view.webContents.getURL(),
+      };
+    }
+    return null;
+  }
+
+  /**
+   * 打开开发者工具
+   */
+  openDevTools(tabId: string): boolean {
+    const view = this.views.get(tabId);
+    if (view) {
+      view.webContents.openDevTools();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 更新单个视图的边界（用于窗口大小变化时调用）
+   * @param hasSubTabs 是否有子标签页（需要显示子标签栏）
+   */
+  private updateViewBounds(view: BrowserView, hasSubTabs: boolean = false) {
     // 检查 mainWindow 是否已被销毁
     if (this.mainWindow.isDestroyed()) {
       return;
     }
-    
+
     // 使用 getContentBounds() 而不是 getBounds()，这样可以获取实际内容区域的大小
     // 避免在最大化时因为窗口边框导致的偏移问题
     const bounds = this.mainWindow.getContentBounds();
-    const sidebarWidth = 60; // 侧边栏宽度
-    const titleBarHeight = 40; // 标题栏高度
-    const tabBarHeight = 38; // TabBar 高度（当有标签时显示）
-    
-    // 检查是否有激活的 tab，如果有则显示 TabBar
+    const headerHeight = 40; // Chrome 风格标题栏高度（包含标签页）
+    const addressBarHeight = 40; // 地址栏高度
+    const subTabBarHeight = 32; // 子标签栏高度
+
+    // 检查是否有激活的 tab，如果有则显示地址栏
     const hasActiveTab = this.activeTabId !== null;
-    const topOffset = titleBarHeight + (hasActiveTab ? tabBarHeight : 0);
-    
-    // 确保宽度不为负数
-    const width = Math.max(0, bounds.width - sidebarWidth);
-    
+    let topOffset = headerHeight + (hasActiveTab ? addressBarHeight : 0);
+
+    // 如果有子标签页，增加子标签栏高度
+    if (hasSubTabs) {
+      topOffset += subTabBarHeight;
+    }
+
     try {
       view.setBounds({
-        x: sidebarWidth,
+        x: 0,
         y: topOffset,
-        width: width,
+        width: bounds.width,
         height: bounds.height - topOffset,
       });
     } catch (error) {
       // 如果 view 已被销毁，忽略错误
       console.warn('[TabManager] 更新视图边界失败（视图可能已被销毁）:', error);
     }
+  }
+
+  /**
+   * 获取标签页的根标签 ID（如果是子标签，返回最顶层的父标签）
+   */
+  private getRootTabId(tabId: string): string {
+    const tab = this.tabs.get(tabId);
+    if (!tab || !tab.parentTabId) {
+      return tabId;
+    }
+    return this.getRootTabId(tab.parentTabId);
+  }
+
+  /**
+   * 检查标签页是否有子标签
+   */
+  private hasSubTabs(tabId: string): boolean {
+    const tab = this.tabs.get(tabId);
+    return !!(tab?.childTabIds && tab.childTabIds.length > 0);
   }
 
   /**
@@ -433,21 +605,43 @@ export class TabManager {
     if (this.mainWindow.isDestroyed()) {
       return;
     }
-    
+
+    // 只更新当前激活的视图
+    if (this.activeTabId) {
+      const view = this.views.get(this.activeTabId);
+      if (view) {
+        const tab = this.tabs.get(this.activeTabId);
+        // 检查是否需要显示子标签栏
+        const rootTabId = this.getRootTabId(this.activeTabId);
+        const hasSubTabs = this.hasSubTabs(rootTabId);
+        this.updateViewBounds(view, hasSubTabs);
+      }
+    }
+  }
+
+  /**
+   * 更新所有视图的边界（旧版本，保留兼容）
+   */
+  updateViewsBoundsLegacy() {
+    // 检查 mainWindow 是否已被销毁
+    if (this.mainWindow.isDestroyed()) {
+      return;
+    }
+
     // 使用 getContentBounds() 而不是 getBounds()，这样可以获取实际内容区域的大小
     // 避免在最大化时因为窗口边框导致的偏移问题
     const bounds = this.mainWindow.getContentBounds();
     const sidebarWidth = 60;
     const titleBarHeight = 40;
     const tabBarHeight = 38;
-    
+
     // 检查是否有激活的 tab，如果有则显示 TabBar
     const hasActiveTab = this.activeTabId !== null;
     const topOffset = titleBarHeight + (hasActiveTab ? tabBarHeight : 0);
-    
+
     // 确保宽度不为负数
     const width = Math.max(0, bounds.width - sidebarWidth);
-    
+
     // 遍历 views 时，检查每个 view 是否仍然有效
     const viewsToRemove: string[] = [];
     this.views.forEach((view, tabId) => {
@@ -457,7 +651,7 @@ export class TabManager {
           viewsToRemove.push(tabId);
           return;
         }
-        
+
         view.setBounds({
           x: sidebarWidth,
           y: topOffset,
@@ -633,18 +827,6 @@ export class TabManager {
       console.error('[TabManager] Script execution error:', error);
       throw new Error(error.message || 'Script execution failed');
     }
-  }
-
-  /**
-   * 打开指定 Tab 的开发者工具
-   */
-  openDevTools(tabId: string) {
-    const view = this.views.get(tabId);
-    if (!view) {
-      throw new Error(`Tab ${tabId} not found`);
-    }
-    console.log('[TabManager] Opening dev tools for tab:', tabId);
-    view.webContents.openDevTools({ mode: 'bottom' });
   }
 
 

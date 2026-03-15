@@ -1,73 +1,24 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
-  import { getAllApps } from '../utils/app-storage';
-  import type { AppConfig } from '../types/app-config';
+  import { createEventDispatcher } from 'svelte';
 
-  export let activeView: 'apps' | 'my-apps' | string = 'apps';
+  export let activeView: 'home' | 'browser' = 'home';
   export let tabs: any[] = [];
 
   const dispatch = createEventDispatcher();
 
-  let appConfigs: AppConfig[] = [];
-
-  // 按 appId 分组标签页
-  $: appGroups = tabs.reduce((acc, tab) => {
-    if (!acc[tab.appId]) {
-      acc[tab.appId] = [];
-    }
-    acc[tab.appId].push(tab);
-    return acc;
-  }, {} as Record<string, any[]>);
-
-  $: openedAppIds = Object.keys(appGroups);
-
-  onMount(async () => {
-    appConfigs = getAllApps();
-  });
-
-  function handleViewChange(view: 'apps' | 'my-apps') {
-    activeView = view;
-    dispatch('viewChange', { view });
-  }
-
-  function handleAppClick(appId: string) {
-    dispatch('appClick', { appId });
-  }
-
-  function getAppConfig(appId: string): AppConfig | undefined {
-    return appConfigs.find(app => app.id === appId);
-  }
-
-  function getAppTabCount(appId: string): number {
-    return appGroups[appId]?.length || 0;
-  }
+  $: tabCount = tabs.length;
 </script>
 
 <aside class="sidebar">
-  <!-- 顶部导航 -->
+  <!-- 新建标签页按钮 -->
   <nav class="nav-section">
     <button
-      class="nav-item"
-      class:active={activeView === 'apps'}
-      on:click={() => handleViewChange('apps')}
-      title="应用中心"
+      class="nav-item primary"
+      on:click={() => dispatch('newTab')}
+      title="新建标签页"
     >
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-        <rect x="2" y="2" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-        <rect x="10" y="2" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-        <rect x="2" y="10" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-        <rect x="10" y="10" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
-      </svg>
-    </button>
-    <button
-      class="nav-item"
-      class:active={activeView === 'my-apps'}
-      on:click={() => handleViewChange('my-apps')}
-      title="我的应用"
-    >
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-        <path d="M9 2L2 6V12L9 16L16 12V6L9 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-        <path d="M2 6L9 10M9 10L16 6M9 10V16" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M9 4V14M4 9H14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
     </button>
   </nav>
@@ -75,41 +26,21 @@
   <!-- 分隔线 -->
   <div class="divider"></div>
 
-  <!-- 已打开的实例/分身 -->
-  {#if openedAppIds.length > 0}
-    <div class="instances-section">
-      <div class="section-title">实例</div>
-      <div class="instances-list">
-        {#each openedAppIds as appId (appId)}
-          {@const appConfig = getAppConfig(appId)}
-          {@const tabCount = getAppTabCount(appId)}
-          <button
-            class="instance-item"
-            class:active={activeView === appId}
-            on:click={() => handleAppClick(appId)}
-            title={appConfig?.name || appId}
-          >
-            {#if appConfig?.icon}
-              <img src={appConfig.icon} alt="" class="instance-icon" />
-            {:else}
-              <div class="instance-placeholder">
-                {(appConfig?.name || appId).charAt(0).toUpperCase()}
-              </div>
-            {/if}
-            {#if tabCount > 1}
-              <span class="instance-badge">{tabCount}</span>
-            {/if}
-          </button>
-        {/each}
-      </div>
+  <!-- 标签页数量指示 -->
+  {#if tabCount > 0}
+    <div class="tab-indicator">
+      <div class="tab-count">{tabCount}</div>
+      <span class="tab-label">标签页</span>
     </div>
   {:else}
     <div class="empty-state">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3"/>
-        <path d="M12 8V16M8 12H16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M3 9H21" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="6" cy="7" r="1" fill="currentColor"/>
+        <circle cx="9" cy="7" r="1" fill="currentColor"/>
       </svg>
-      <span>无实例</span>
+      <span>无标签页</span>
     </div>
   {/if}
 
@@ -163,9 +94,14 @@
     color: var(--text-secondary);
   }
 
-  .nav-item.active {
+  .nav-item.primary {
     background: var(--accent-bg);
     color: var(--accent-primary);
+  }
+
+  .nav-item.primary:hover {
+    background: var(--accent-primary);
+    color: var(--bg-primary);
   }
 
   /* 分隔线 */
@@ -175,98 +111,33 @@
     margin: 12px 14px;
   }
 
-  /* 实例区域 */
-  .instances-section {
+  /* 标签页指示 */
+  .tab-indicator {
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 0;
-    padding: 0 10px;
-  }
-
-  .section-title {
-    font-size: 10px;
-    font-weight: 500;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    text-align: center;
-    margin-bottom: 8px;
-  }
-
-  .instances-list {
-    display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 6px;
-    overflow-y: auto;
-    padding: 2px 0;
+    justify-content: flex-start;
+    padding-top: 8px;
+    gap: 4px;
   }
 
-  .instances-list::-webkit-scrollbar {
-    width: 0;
-  }
-
-  .instance-item {
-    position: relative;
-    width: 36px;
-    height: 36px;
+  .tab-count {
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
     background: var(--bg-tertiary);
-    border: 1px solid transparent;
     border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.15s ease;
-    padding: 0;
-  }
-
-  .instance-item:hover {
-    background: var(--bg-hover);
-    border-color: var(--border-hover);
-  }
-
-  .instance-item.active {
-    background: var(--accent-bg);
-    border-color: var(--accent-primary);
-  }
-
-  .instance-icon {
-    width: 20px;
-    height: 20px;
-    object-fit: contain;
-    border-radius: 4px;
-  }
-
-  .instance-placeholder {
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--accent-bg);
-    border-radius: 4px;
-    font-size: 10px;
+    font-size: 14px;
     font-weight: 600;
-    color: var(--accent-primary);
+    color: var(--text-primary);
   }
 
-  .instance-badge {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    background: var(--accent-primary);
-    color: var(--bg-primary);
+  .tab-label {
     font-size: 10px;
-    font-weight: 600;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    color: var(--text-muted);
   }
 
   /* 空状态 */

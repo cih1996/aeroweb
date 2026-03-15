@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
   import { getAllConfigs, deleteConfigs } from '../utils/browser-config-storage';
-  import { getAllApps } from '../utils/app-storage';
+  import { getAllAppsAsync } from '../utils/app-storage';
   import type { BrowserConfig } from '../types/browser-config';
   import type { AppConfig } from '../types/app-config';
 
@@ -30,7 +30,7 @@
   })();
 
   onMount(async () => {
-    apps = getAllApps();
+    apps = await getAllAppsAsync();
     const newAppNameMap: Record<string, string> = {};
     const newAppIconMap: Record<string, string> = {};
     for (const app of apps) {
@@ -40,6 +40,19 @@
     appNameMap = newAppNameMap;
     appIconMap = newAppIconMap;
   });
+
+  // 刷新应用列表（供外部调用）
+  export async function refreshApps() {
+    apps = await getAllAppsAsync();
+    const newAppNameMap: Record<string, string> = {};
+    const newAppIconMap: Record<string, string> = {};
+    for (const app of apps) {
+      newAppNameMap[app.id] = app.name;
+      newAppIconMap[app.id] = app.icon;
+    }
+    appNameMap = newAppNameMap;
+    appIconMap = newAppIconMap;
+  }
 
   function toggleSelectMode() {
     isSelectMode = !isSelectMode;

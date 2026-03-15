@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher, onMount } from 'svelte';
-  import { getAllApps, getFavoriteApps, getNonFavoriteApps, saveApp, deleteApp, toggleFavorite, updateAppOrder, readImageAsBase64, saveAppIconToCache } from '../utils/app-storage';
+  import { getAllAppsAsync, saveAppAsync, deleteAppAsync, refreshAppsCache, readImageAsBase64, saveAppIconToCache } from '../utils/app-storage';
   import type { AppConfig } from '../types/app-config';
 
   const dispatch = createEventDispatcher();
@@ -29,8 +29,14 @@
   });
 
   async function loadApps() {
-    favoriteApps = getFavoriteApps();
-    normalApps = getNonFavoriteApps();
+    const allApps = await getAllAppsAsync();
+    favoriteApps = allApps.filter(app => app.isFavorite);
+    normalApps = allApps.filter(app => !app.isFavorite);
+  }
+
+  // 刷新应用列表（供外部调用）
+  export async function refreshApps() {
+    await loadApps();
   }
 
   function handleAppClick(appId: string) {
@@ -110,7 +116,7 @@
         updatedAt: Date.now(),
       };
 
-      saveApp(appToSave);
+      await saveAppAsync(appToSave);
       await loadApps();
       closeModal();
     } catch (error) {
@@ -119,12 +125,12 @@
     }
   }
 
-  function handleDeleteApp(app: AppConfig, event: Event) {
+  async function handleDeleteApp(app: AppConfig, event: Event) {
     event.stopPropagation();
     if (confirm(`确定要删除应用 "${app.name}" 吗？`)) {
       try {
-        deleteApp(app.id);
-        loadApps();
+        await deleteAppAsync(app.id);
+        await loadApps();
       } catch (error) {
         console.error('删除应用失败:', error);
         alert('删除失败，请重试');
@@ -132,11 +138,13 @@
     }
   }
 
-  function handleToggleFavorite(app: AppConfig, event: Event) {
+  async function handleToggleFavorite(app: AppConfig, event: Event) {
     event.stopPropagation();
     try {
-      toggleFavorite(app.id);
-      loadApps();
+      // 切换收藏状态
+      const updatedApp = { ...app, isFavorite: !app.isFavorite, updatedAt: Date.now() };
+      await saveAppAsync(updatedApp);
+      await loadApps();
     } catch (error) {
       console.error('切换收藏失败:', error);
     }
@@ -160,9 +168,9 @@
   }
 
   // 放置
-  function handleDrop(targetApp: AppConfig, targetIsFavorite: boolean, event: DragEvent) {
+  async function handleDrop(targetApp: AppConfig, targetIsFavorite: boolean, event: DragEvent) {
     event.preventDefault();
-    
+
     if (!draggedApp || draggedApp.id === targetApp.id) {
       return;
     }
@@ -170,21 +178,25 @@
     // 获取要操作的列表
     const sourceList = draggedFromFavorite ? [...favoriteApps] : [...normalApps];
     const targetList = targetIsFavorite ? [...favoriteApps] : [...normalApps];
-    
+
     // 如果在同一列表内移动
     if (draggedFromFavorite === targetIsFavorite) {
       const draggedIndex = sourceList.findIndex(a => a.id === draggedApp!.id);
       const targetIndex = sourceList.findIndex(a => a.id === targetApp.id);
-      
+
       if (draggedIndex >= 0 && targetIndex >= 0) {
         // 交换位置
         sourceList.splice(draggedIndex, 1);
         sourceList.splice(targetIndex, 0, draggedApp!);
-        
+
         // 更新所有应用的顺序
         const allApps = targetIsFavorite ? [...sourceList, ...normalApps] : [...favoriteApps, ...sourceList];
-        updateAppOrder(allApps);
-        loadApps();
+        // 重新分配 order 并保存每个应用
+        for (let i = 0; i < allApps.length; i++) {
+          const app = { ...allApps[i], order: i, updatedAt: Date.now() };
+          await saveAppAsync(app);
+        }
+        await loadApps();
       }
     }
   }

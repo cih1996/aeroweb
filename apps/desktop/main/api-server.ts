@@ -6,6 +6,7 @@ import * as http from 'http';
 import { TabManager } from './windows/tab-manager';
 import { app } from 'electron';
 import * as AppStorage from './app-storage';
+import * as SessionStorage from './session-storage';
 
 const API_PORT = 9528;
 
@@ -136,6 +137,26 @@ export class ApiServer {
       } else if (pathname.match(/^\/api\/apps\/[^/]+$/) && method === 'DELETE') {
         const appId = pathname.split('/')[3];
         response = await this.handleDeleteApp(appId);
+      }
+      // Session 管理 API
+      else if (pathname === '/api/sessions' && method === 'GET') {
+        response = await this.handleListSessions();
+      } else if (pathname === '/api/sessions' && method === 'POST') {
+        const body = await this.parseBody(req);
+        response = await this.handleCreateSession(body);
+      } else if (pathname.match(/^\/api\/sessions\/[^/]+$/) && method === 'GET') {
+        const sessionId = decodeURIComponent(pathname.split('/')[3]);
+        response = await this.handleGetSession(sessionId);
+      } else if (pathname.match(/^\/api\/sessions\/[^/]+$/) && method === 'PUT') {
+        const sessionId = decodeURIComponent(pathname.split('/')[3]);
+        const body = await this.parseBody(req);
+        response = await this.handleUpdateSession(sessionId, body);
+      } else if (pathname.match(/^\/api\/sessions\/[^/]+$/) && method === 'DELETE') {
+        const sessionId = decodeURIComponent(pathname.split('/')[3]);
+        response = await this.handleDeleteSession(sessionId);
+      } else if (pathname.match(/^\/api\/sessions\/[^/]+\/open$/) && method === 'POST') {
+        const sessionId = decodeURIComponent(pathname.split('/')[3]);
+        response = await this.handleOpenSession(sessionId);
       } else {
         response = { success: false, error: 'Not found' };
         res.writeHead(404);
@@ -203,6 +224,8 @@ export class ApiServer {
         active: tab.active,
         configId: tab.configId,
         configName: tab.configName,
+        parentTabId: tab.parentTabId,
+        childTabIds: tab.childTabIds,
       })),
     };
   }
@@ -490,6 +513,137 @@ export class ApiServer {
       success: result,
       data: result ? { deleted: appId } : undefined,
       error: result ? undefined : `App '${appId}' not found`,
+    };
+  }
+
+  // ==================== Session API ====================
+
+  // GET /api/sessions
+  private async handleListSessions(): Promise<ApiResponse> {
+    const sessions = SessionStorage.getAllSessions();
+    // 标记正在运行的 session
+    const runningTabs = this.tabManager ? await this.tabManager.listTabs() : [];
+    const runningSessionIds = new Set(runningTabs.map(t => t.configId).filter(Boolean));
+
+    return {
+      success: true,
+      data: sessions.map((s) => ({
+        id: s.id,
+        name: s.name,
+        url: s.url,
+        note: s.note,
+        partition: s.partition,
+        createdAt: s.createdAt,
+        lastUsedAt: s.lastUsedAt,
+        isRunning: runningSessionIds.has(s.id),
+      })),
+    };
+  }
+
+  // GET /api/sessions/:id
+  private async handleGetSession(sessionId: string): Promise<ApiResponse> {
+    const session = SessionStorage.getSessionById(sessionId);
+    if (!session) {
+      return { success: false, error: `Session '${sessionId}' not found` };
+    }
+    return {
+      success: true,
+      data: session,
+    };
+  }
+
+  // POST /api/sessions
+  private async handleCreateSession(body: any): Promise<ApiResponse> {
+    const { name, url, note } = body;
+    if (!name) {
+      return { success: false, error: 'name is required' };
+    }
+    if (!url) {
+      return { success: false, error: 'url is required' };
+    }
+
+    const id = SessionStorage.generateSessionId(name);
+    const session = SessionStorage.saveSession({
+      id,
+      name,
+      url,
+      note,
+      partition: `persist:${id}`,
+    });
+
+    return {
+      success: true,
+      data: {
+        ...session,
+        message: `Session '${session.name}' created`,
+      },
+    };
+  }
+
+  // PUT /api/sessions/:id
+  private async handleUpdateSession(sessionId: string, body: any): Promise<ApiResponse> {
+    const existing = SessionStorage.getSessionById(sessionId);
+    if (!existing) {
+      return { success: false, error: `Session '${sessionId}' not found` };
+    }
+
+    const { name, url, note } = body;
+    const session = SessionStorage.saveSession({
+      ...existing,
+      name: name ?? existing.name,
+      url: url ?? existing.url,
+      note: note ?? existing.note,
+    });
+
+    return {
+      success: true,
+      data: {
+        ...session,
+        message: `Session '${session.name}' updated`,
+      },
+    };
+  }
+
+  // DELETE /api/sessions/:id
+  private async handleDeleteSession(sessionId: string): Promise<ApiResponse> {
+    const result = SessionStorage.deleteSession(sessionId);
+    return {
+      success: result,
+      data: result ? { deleted: sessionId } : undefined,
+      error: result ? undefined : `Session '${sessionId}' not found`,
+    };
+  }
+
+  // POST /api/sessions/:id/open
+  private async handleOpenSession(sessionId: string): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+
+    const session = SessionStorage.getSessionById(sessionId);
+    if (!session) {
+      return { success: false, error: `Session '${sessionId}' not found` };
+    }
+
+    // 更新最后使用时间
+    SessionStorage.updateLastUsed(sessionId);
+
+    // 创建 Tab
+    const tab = await this.tabManager.createTab(
+      session.id,
+      session.url,
+      session.id,
+      session.name
+    );
+
+    return {
+      success: true,
+      data: {
+        tabId: tab.id,
+        sessionId: session.id,
+        sessionName: session.name,
+        url: session.url,
+      },
     };
   }
 }

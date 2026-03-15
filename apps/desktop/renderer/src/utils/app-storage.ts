@@ -1,109 +1,43 @@
 /**
  * 应用配置存储工具（用户自定义应用）
+ * 使用主进程的文件存储，与 CLI/API 共享数据
  */
 import type { AppConfig } from '../types/app-config';
 
-const STORAGE_KEY = 'user_apps';
+// 内存缓存
+let appsCache: AppConfig[] | null = null;
 
 /**
- * 默认应用列表
+ * 获取所有应用配置（异步，从主进程读取）
  */
-const DEFAULT_APPS: AppConfig[] = [
-  {
-    id: 'temu',
-    name: 'Temu',
-    url: 'https://seller.kuajingmaihuo.com/',
-    icon: './apps/icons/temu.ico',
-    color: '#FF6B00',
-    isFavorite: false,
-    order: 0,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'telegram',
-    name: 'Telegram',
-    url: 'https://web.telegram.org',
-    icon: './apps/icons/telegram.svg',
-    color: '#0088cc',
-    isFavorite: false,
-    order: 1,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'x',
-    name: 'X (Twitter)',
-    url: 'https://x.com',
-    icon: './apps/icons/x.svg',
-    color: '#000000',
-    isFavorite: false,
-    order: 2,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'douyin',
-    name: '抖音',
-    url: 'https://www.douyin.com',
-    icon: './apps/icons/tiktok.svg',
-    color: '#000000',
-    isFavorite: false,
-    order: 3,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'bilibili',
-    name: '哔哩哔哩',
-    url: 'https://www.bilibili.com/',
-    icon: './apps/icons/bilibili.svg',
-    color: '#FB7299',
-    isFavorite: false,
-    order: 4,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 'whatsapp',
-    name: 'WhatsApp',
-    url: 'https://web.whatsapp.com',
-    icon: './apps/icons/whatsapp.svg',
-    color: '#25D366',
-    isFavorite: false,
-    order: 5,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-];
-
-/**
- * 初始化默认应用（仅在首次使用时）
- */
-function initDefaultApps(): void {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_APPS));
+export async function getAllAppsAsync(): Promise<AppConfig[]> {
+  try {
+    const apps = await window.electronAPI.app.list();
+    appsCache = apps;
+    return apps.sort((a, b) => a.order - b.order);
+  } catch (error) {
+    console.error('读取应用配置失败:', error);
+    return appsCache || [];
   }
 }
 
 /**
- * 获取所有应用配置
+ * 获取所有应用配置（同步，使用缓存）
+ * 注意：首次调用前需要先调用 getAllAppsAsync() 初始化缓存
  */
 export function getAllApps(): AppConfig[] {
-  try {
-    initDefaultApps();
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) {
-      return [];
-    }
-    const apps: AppConfig[] = JSON.parse(stored);
-    // 按 order 排序
-    return apps.sort((a, b) => a.order - b.order);
-  } catch (error) {
-    console.error('读取应用配置失败:', error);
+  if (appsCache === null) {
+    console.warn('应用缓存未初始化，请先调用 getAllAppsAsync()');
     return [];
   }
+  return appsCache.sort((a, b) => a.order - b.order);
+}
+
+/**
+ * 刷新缓存
+ */
+export async function refreshAppsCache(): Promise<AppConfig[]> {
+  return getAllAppsAsync();
 }
 
 /**
@@ -123,23 +57,13 @@ export function getNonFavoriteApps(): AppConfig[] {
 }
 
 /**
- * 保存应用配置
+ * 保存应用配置（异步）
  */
-export function saveApp(app: AppConfig): void {
+export async function saveAppAsync(app: AppConfig): Promise<void> {
   try {
-    const apps = getAllApps();
-    const existingIndex = apps.findIndex(a => a.id === app.id);
-    
-    if (existingIndex >= 0) {
-      // 更新现有应用
-      apps[existingIndex] = { ...app, updatedAt: Date.now() };
-    } else {
-      // 添加新应用
-      const maxOrder = apps.reduce((max, a) => Math.max(max, a.order), -1);
-      apps.push({ ...app, order: maxOrder + 1, createdAt: Date.now(), updatedAt: Date.now() });
-    }
-    
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(apps));
+    await window.electronAPI.app.save(app);
+    // 刷新缓存
+    await refreshAppsCache();
   } catch (error) {
     console.error('保存应用配置失败:', error);
     throw error;
@@ -147,17 +71,48 @@ export function saveApp(app: AppConfig): void {
 }
 
 /**
+ * 保存应用配置（同步版本，更新本地缓存）
+ * 注意：实际保存是异步的，但会立即更新本地缓存
+ */
+export function saveApp(app: AppConfig): void {
+  // 立即更新本地缓存
+  if (appsCache) {
+    const existingIndex = appsCache.findIndex(a => a.id === app.id);
+    if (existingIndex >= 0) {
+      appsCache[existingIndex] = { ...app, updatedAt: Date.now() };
+    } else {
+      const maxOrder = appsCache.reduce((max, a) => Math.max(max, a.order), -1);
+      appsCache.push({ ...app, order: maxOrder + 1, createdAt: Date.now(), updatedAt: Date.now() });
+    }
+  }
+  // 异步保存到主进程
+  saveAppAsync(app).catch(console.error);
+}
+
+/**
  * 删除应用配置
  */
-export function deleteApp(appId: string): void {
+export async function deleteAppAsync(appId: string): Promise<void> {
   try {
-    const apps = getAllApps();
-    const filtered = apps.filter(a => a.id !== appId);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+    await window.electronAPI.app.delete(appId);
+    // 刷新缓存
+    await refreshAppsCache();
   } catch (error) {
     console.error('删除应用配置失败:', error);
     throw error;
   }
+}
+
+/**
+ * 删除应用配置（同步版本）
+ */
+export function deleteApp(appId: string): void {
+  // 立即更新本地缓存
+  if (appsCache) {
+    appsCache = appsCache.filter(a => a.id !== appId);
+  }
+  // 异步删除
+  deleteAppAsync(appId).catch(console.error);
 }
 
 /**
@@ -182,15 +137,15 @@ export function toggleFavorite(appId: string): void {
 /**
  * 更新应用顺序
  */
-export function updateAppOrder(apps: AppConfig[]): void {
+export async function updateAppOrder(apps: AppConfig[]): Promise<void> {
   try {
-    // 重新分配 order
-    const updatedApps = apps.map((app, index) => ({
-      ...app,
-      order: index,
-      updatedAt: Date.now(),
-    }));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedApps));
+    // 重新分配 order 并保存每个应用
+    for (let i = 0; i < apps.length; i++) {
+      const app = { ...apps[i], order: i, updatedAt: Date.now() };
+      await window.electronAPI.app.save(app);
+    }
+    // 刷新缓存
+    await refreshAppsCache();
   } catch (error) {
     console.error('更新应用顺序失败:', error);
     throw error;
@@ -225,7 +180,7 @@ export async function saveAppIconToCache(appId: string, base64Data: string): Pro
     }
 
     const result = await window.electronAPI.fs.saveAppIcon(appId, base64Data);
-    
+
     if (result.success && result.iconPath) {
       // 返回本地文件路径，使用 file:// 协议
       return `file://${result.iconPath}`;
@@ -240,4 +195,3 @@ export async function saveAppIconToCache(appId: string, base64Data: string): Pro
     return base64Data;
   }
 }
-

@@ -367,3 +367,65 @@ serviceCommand
 
 // 导出检查函数供其他命令使用
 export { isRunning, getProjectPath, waitForReady };
+
+/**
+ * 确保服务正在运行，如果没有运行则自动启动
+ * @param silent 是否静默模式（不输出启动信息）
+ * @returns 是否成功
+ */
+export async function ensureRunning(silent: boolean = false): Promise<boolean> {
+  // 已经在运行
+  if (await isRunning()) {
+    return true;
+  }
+
+  // 检查端口占用但服务未响应的情况
+  if (isPortInUse(API_PORT)) {
+    // 尝试清理僵尸进程
+    killPortProcess(API_PORT);
+    await new Promise(r => setTimeout(r, 1000));
+  }
+
+  // 自动启动
+  if (!silent) {
+    console.error('\x1b[33m[AeroWeb] 服务未运行，正在自动启动...\x1b[0m');
+  }
+
+  // 优先使用打包应用
+  const appPath = getAppPath();
+  if (appPath) {
+    spawn('open', ['-a', appPath], {
+      detached: true,
+      stdio: 'ignore',
+    }).unref();
+  } else {
+    // 使用开发模式
+    const projectPath = getProjectPath();
+    if (!projectPath) {
+      if (!silent) {
+        console.error('\x1b[31m[AeroWeb] 找不到 AeroWeb，请先安装应用或设置 POLYWEB_PROJECT_PATH\x1b[0m');
+      }
+      return false;
+    }
+
+    spawn('sh', ['-c', `cd "${projectPath}" && nohup pnpm dev > /tmp/polyweb.log 2>&1 &`], {
+      detached: true,
+      stdio: 'ignore',
+    }).unref();
+  }
+
+  // 等待服务就绪（最多 15 秒）
+  const ready = await waitForReady(15);
+
+  if (ready) {
+    if (!silent) {
+      console.error('\x1b[32m[AeroWeb] 服务已就绪\x1b[0m');
+    }
+    return true;
+  } else {
+    if (!silent) {
+      console.error('\x1b[31m[AeroWeb] 启动超时，请检查 /tmp/polyweb.log 或手动运行 polyweb start --dev\x1b[0m');
+    }
+    return false;
+  }
+}

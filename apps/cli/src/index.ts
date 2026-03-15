@@ -1,15 +1,115 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { tabCommand } from './commands/tab';
-import { appCommand } from './commands/app';
-import { serviceCommand, isRunning } from './commands/service';
+import { sessionCommand } from './commands/session';
+import { serviceCommand } from './commands/service';
 import { output } from './utils/output';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
+import { execSync } from 'child_process';
+
+// ============ 自安装逻辑 ============
+const BINARY_NAME = 'aeroweb';
+
+function getGlobalBinPath(): string {
+  const platform = os.platform();
+  if (platform === 'win32') {
+    const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+    return path.join(localAppData, 'Programs', 'aeroweb');
+  } else {
+    // macOS 和 Linux 统一用 ~/.local/bin，避免 sudo
+    return path.join(os.homedir(), '.local', 'bin');
+  }
+}
+
+function getBinaryName(): string {
+  return os.platform() === 'win32' ? `${BINARY_NAME}.exe` : BINARY_NAME;
+}
+
+function install(): void {
+  const currentExe = process.execPath;
+  const binDir = getGlobalBinPath();
+  const targetPath = path.join(binDir, getBinaryName());
+
+  console.log('🚀 AeroWeb CLI 安装程序\n');
+  console.log(`📍 当前位置: ${currentExe}`);
+  console.log(`📁 目标路径: ${targetPath}\n`);
+
+  try {
+    // 确保目录存在
+    if (!fs.existsSync(binDir)) {
+      fs.mkdirSync(binDir, { recursive: true });
+    }
+
+    // 备份旧版本
+    if (fs.existsSync(targetPath)) {
+      fs.renameSync(targetPath, `${targetPath}.bak`);
+      console.log(`📦 已备份旧版本`);
+    }
+
+    // 复制文件
+    fs.copyFileSync(currentExe, targetPath);
+    if (os.platform() !== 'win32') {
+      fs.chmodSync(targetPath, 0o755);
+    }
+
+    console.log(`✅ 安装成功！`);
+    console.log(`\n现在可以在任意位置使用 '${BINARY_NAME}' 命令`);
+
+    // 检查 PATH
+    const pathEnv = process.env.PATH || '';
+    const separator = os.platform() === 'win32' ? ';' : ':';
+    if (!pathEnv.split(separator).includes(binDir)) {
+      console.log(`\n⚠️  提示: ${binDir} 不在 PATH 中`);
+      if (os.platform() === 'win32') {
+        console.log(`   请将 ${binDir} 添加到系统环境变量 PATH`);
+      } else {
+        const rcFile = (process.env.SHELL || '').includes('zsh') ? '~/.zshrc' : '~/.bashrc';
+        // 自动添加到 shell 配置
+        const rcPath = rcFile.replace('~', os.homedir());
+        const exportLine = `export PATH="${binDir}:$PATH"`;
+        try {
+          const content = fs.existsSync(rcPath) ? fs.readFileSync(rcPath, 'utf-8') : '';
+          if (!content.includes(binDir)) {
+            fs.appendFileSync(rcPath, `\n# AeroWeb CLI\n${exportLine}\n`);
+            console.log(`   已自动添加到 ${rcFile}，重启终端或执行: source ${rcFile}`);
+          }
+        } catch {
+          console.log(`   请添加: ${exportLine} 到 ${rcFile}`);
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error(`❌ 安装失败: ${err.message}`);
+    process.exit(1);
+  }
+}
+
+function shouldInstall(): boolean {
+  const args = process.argv.slice(2);
+  // 显式安装命令
+  if (args[0] === 'install' || args[0] === '--install') return true;
+  // 双击运行（无参数）且是打包后的二进制
+  if (args.length === 0 && !process.execPath.includes('node')) {
+    const binDir = getGlobalBinPath();
+    return !process.execPath.startsWith(binDir);
+  }
+  return false;
+}
+
+// 检查是否需要自安装
+if (shouldInstall()) {
+  install();
+  process.exit(0);
+}
+// ============ 自安装逻辑结束 ============
 
 const program = new Command();
 
 program
-  .name('polyweb')
-  .description('PolyWeb CLI - AI 浏览器命令行工具')
+  .name('aeroweb')
+  .description('AeroWeb CLI - AI 浏览器命令行工具')
   .version('1.0.0')
   .option('-f, --format <type>', '输出格式 (json|text)', 'json')
   .option('-q, --quiet', '静默模式')
@@ -20,7 +120,7 @@ program
   });
 
 program.addCommand(tabCommand);
-program.addCommand(appCommand);
+program.addCommand(sessionCommand);
 program.addCommand(serviceCommand);
 
 // 别名：tabs = tab list
@@ -31,12 +131,12 @@ program
     await tabCommand.commands.find(c => c.name() === 'list')?.parseAsync([]);
   });
 
-// 别名：apps = app list
+// 别名：sessions = session list
 program
-  .command('apps')
-  .description('列出所有应用 (等同于 app list)')
+  .command('sessions')
+  .description('列出所有会话 (等同于 session list)')
   .action(async () => {
-    await appCommand.commands.find(c => c.name() === 'list')?.parseAsync([]);
+    await sessionCommand.commands.find(c => c.name() === 'list')?.parseAsync([]);
   });
 
 // 别名：start = service start

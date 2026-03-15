@@ -1,26 +1,15 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount } from 'svelte';
-  import { getAllApps } from '../utils/app-storage';
-  import type { AppConfig } from '../types/app-config';
+  import { createEventDispatcher } from 'svelte';
 
   export let tabs: any[] = [];
   export let activeTabId: string | null = null;
 
   const dispatch = createEventDispatcher();
 
-  let appConfigs: AppConfig[] = [];
   let contextMenuTabId: string | null = null;
   let contextMenuX = 0;
   let contextMenuY = 0;
   let showContextMenu = false;
-
-  onMount(async () => {
-    appConfigs = getAllApps();
-  });
-
-  function getAppConfig(appId: string): AppConfig | undefined {
-    return appConfigs.find(app => app.id === appId);
-  }
 
   function handleClose(tabId: string, event: MouseEvent) {
     event.stopPropagation();
@@ -63,18 +52,40 @@
     }
   }
 
-  function getTabDisplayName(tab: any, appConfig: AppConfig | undefined): string {
-    return tab.configName || tab.title || appConfig?.name || tab.appId;
+  function getTabDisplayName(tab: any): string {
+    // 优先显示标题，其次是配置名称，最后是 URL 的域名
+    if (tab.title && tab.title !== 'about:blank') {
+      return tab.title;
+    }
+    if (tab.configName) {
+      return tab.configName;
+    }
+    if (tab.url) {
+      try {
+        const url = new URL(tab.url);
+        return url.hostname;
+      } catch {
+        return tab.url;
+      }
+    }
+    return '新标签页';
+  }
+
+  function getTabIcon(tab: any): string {
+    // 返回首字母作为图标
+    const name = getTabDisplayName(tab);
+    return name.charAt(0).toUpperCase();
   }
 </script>
 
 <div
   class="tab-bar"
   role="tablist"
+  tabindex="0"
   on:click|self={handleClickOutside}
+  on:keydown={(e) => e.key === 'Escape' && handleClickOutside()}
 >
   {#each tabs as tab (tab.id)}
-    {@const appConfig = getAppConfig(tab.appId)}
     <button
       class="tab"
       class:active={tab.id === activeTabId}
@@ -83,17 +94,13 @@
       tabindex={tab.id === activeTabId ? 0 : -1}
       on:click={() => handleActivate(tab.id)}
       on:contextmenu={(e) => handleContextMenu(tab.id, e)}
-      title={getTabDisplayName(tab, appConfig)}
+      title={getTabDisplayName(tab)}
     >
       <span class="tab-indicator"></span>
-      {#if appConfig?.icon}
-        <img src={appConfig.icon} alt="" class="tab-icon" />
-      {:else}
-        <span class="tab-icon-placeholder">
-          {(appConfig?.name || tab.appId).charAt(0).toUpperCase()}
-        </span>
-      {/if}
-      <span class="tab-title">{getTabDisplayName(tab, appConfig)}</span>
+      <span class="tab-icon-placeholder">
+        {getTabIcon(tab)}
+      </span>
+      <span class="tab-title">{getTabDisplayName(tab)}</span>
       <button
         class="tab-close"
         on:click={(e) => handleClose(tab.id, e)}
@@ -105,6 +112,17 @@
       </button>
     </button>
   {/each}
+
+  <!-- 新建标签页按钮 -->
+  <button
+    class="new-tab-btn"
+    on:click={() => dispatch('newTab')}
+    title="新建标签页"
+  >
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M7 3V11M3 7H11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+  </button>
 </div>
 
 {#if showContextMenu && contextMenuTabId}
@@ -119,17 +137,6 @@
     <button
       class="context-menu-item"
       role="menuitem"
-      on:click={() => handleContextMenuAction('properties')}
-    >
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-        <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2"/>
-        <path d="M7 5V7.5M7 9.5V9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-      </svg>
-      <span>属性</span>
-    </button>
-    <button
-      class="context-menu-item"
-      role="menuitem"
       on:click={() => handleContextMenuAction('reload')}
     >
       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -138,7 +145,28 @@
       </svg>
       <span>刷新</span>
     </button>
+    <button
+      class="context-menu-item"
+      role="menuitem"
+      on:click={() => handleContextMenuAction('duplicate')}
+    >
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <rect x="4" y="4" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M3 10V3.5A.5.5 0 0 1 3.5 3H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+      <span>复制标签页</span>
+    </button>
     <div class="context-menu-divider"></div>
+    <button
+      class="context-menu-item"
+      role="menuitem"
+      on:click={() => handleContextMenuAction('closeOthers')}
+    >
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M2 7H12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+      <span>关闭其他标签页</span>
+    </button>
     <button
       class="context-menu-item danger"
       role="menuitem"
@@ -208,14 +236,6 @@
     background: var(--accent-primary);
   }
 
-  .tab-icon {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
-    object-fit: contain;
-    border-radius: 3px;
-  }
-
   .tab-icon-placeholder {
     width: 16px;
     height: 16px;
@@ -265,6 +285,26 @@
     color: var(--text-primary);
   }
 
+  /* 新建标签页按钮 */
+  .new-tab-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    min-width: 32px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .new-tab-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
   /* 右键菜单 */
   .context-menu {
     position: fixed;
@@ -274,7 +314,7 @@
     padding: 4px;
     box-shadow: var(--shadow-lg);
     z-index: 999999;
-    min-width: 140px;
+    min-width: 160px;
   }
 
   .context-menu-item {

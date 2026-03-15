@@ -11,6 +11,8 @@ interface TabInfo {
   active: boolean;
   configId?: string;
   configName?: string;
+  parentTabId?: string;
+  childTabIds?: string[];
 }
 
 interface AppInfo {
@@ -22,6 +24,17 @@ interface AppInfo {
   isFavorite: boolean;
 }
 
+interface SessionInfo {
+  id: string;
+  name: string;
+  url: string;
+  note?: string;
+  partition: string;
+  createdAt: number;
+  lastUsedAt: number;
+  isRunning?: boolean;
+}
+
 interface ConsoleLog {
   level: string;
   message: string;
@@ -30,11 +43,37 @@ interface ConsoleLog {
   timestamp: number;
 }
 
+// 缓存服务状态，避免每次请求都检查
+let serviceChecked = false;
+let serviceReady = false;
+
 class BrowserClient {
   private host = process.env.POLYWEB_HOST || '127.0.0.1';
   private port = parseInt(process.env.POLYWEB_PORT || '9528', 10);
 
+  /**
+   * 确保服务正在运行
+   */
+  private async ensureService(): Promise<void> {
+    // 如果已经检查过且服务就绪，跳过
+    if (serviceChecked && serviceReady) {
+      return;
+    }
+
+    // 动态导入避免循环依赖
+    const { ensureRunning } = await import('../commands/service');
+    serviceReady = await ensureRunning();
+    serviceChecked = true;
+
+    if (!serviceReady) {
+      throw new Error('AeroWeb 服务未运行，请先执行 polyweb start');
+    }
+  }
+
   async req<T>(method: string, path: string, body?: unknown): Promise<T> {
+    // 先确保服务运行
+    await this.ensureService();
+
     return new Promise((resolve, reject) => {
       const data = body ? JSON.stringify(body) : undefined;
       // 对 path 进行 URL 编码，处理中文等特殊字符
@@ -60,7 +99,12 @@ class BrowserClient {
           }
         });
       });
-      r.on('error', e => reject(new Error(`Connection failed: ${e.message}`)));
+      r.on('error', e => {
+        // 连接失败时重置状态，下次重新检查
+        serviceChecked = false;
+        serviceReady = false;
+        reject(new Error(`Connection failed: ${e.message}`));
+      });
       if (data) r.write(data);
       r.end();
     });
@@ -140,6 +184,31 @@ class BrowserClient {
 
   deleteApp(appId: string) {
     return this.req<{ deleted: string }>('DELETE', `/apps/${appId}`);
+  }
+
+  // Session 管理
+  listSessions() {
+    return this.req<SessionInfo[]>('GET', '/sessions');
+  }
+
+  getSession(sessionId: string) {
+    return this.req<SessionInfo>('GET', `/sessions/${sessionId}`);
+  }
+
+  createSession(name: string, url: string, note?: string) {
+    return this.req<SessionInfo & { message: string }>('POST', '/sessions', { name, url, note });
+  }
+
+  updateSession(sessionId: string, data: { name?: string; url?: string; note?: string }) {
+    return this.req<SessionInfo & { message: string }>('PUT', `/sessions/${sessionId}`, data);
+  }
+
+  deleteSession(sessionId: string) {
+    return this.req<{ deleted: string }>('DELETE', `/sessions/${sessionId}`);
+  }
+
+  openSession(sessionId: string) {
+    return this.req<{ tabId: string; sessionId: string; sessionName: string; url: string }>('POST', `/sessions/${sessionId}/open`);
   }
 }
 

@@ -20,7 +20,7 @@ function createWindow() {
     height: 900,
     minWidth: 1000,
     minHeight: 600,
-    backgroundColor: '#0a0e27',
+    backgroundColor: '#000000',
     frame: false, // 无边框窗口
     show: false, // 先不显示，等加载完成后再显示
     webPreferences: {
@@ -30,7 +30,8 @@ function createWindow() {
       contextIsolation: true,
       webSecurity: true,
     },
-    titleBarStyle: 'hidden',
+    titleBarStyle: 'hiddenInset', // macOS 上使用 hiddenInset 以便红绿灯按钮正确显示
+    trafficLightPosition: { x: 16, y: 12 }, // 调整红绿灯按钮位置
   });
 
   // 开发环境加载 Vite dev server，生产环境加载构建后的文件
@@ -166,10 +167,10 @@ function createWindow() {
       return { action: 'deny' };
     });
     
-    // 生产环境：在打包后，__dirname 指向 app.asar/dist/main
-    // 所以 ../renderer/dist/index.html 会解析为 app.asar/renderer/dist/index.html
-    // loadFile 可以正确处理 asar 内的相对路径
-    const rendererPath = join(__dirname, '../renderer/dist/index.html');
+    // 开发环境：__dirname 指向 dist/main
+    // 所以需要 ../../renderer/dist/index.html 才能到达 renderer/dist/index.html
+    // 生产环境（打包后）：__dirname 指向 app.asar/dist/main，路径同样适用
+    const rendererPath = join(__dirname, '../../renderer/dist/index.html');
     console.log('[Main] 生产环境 - __dirname:', __dirname);
     console.log('[Main] 生产环境 - 加载路径:', rendererPath);
     console.log('[Main] 生产环境 - app.getAppPath():', app.getAppPath());
@@ -523,6 +524,49 @@ function setupIPC() {
     throw new Error('TabManager not initialized');
   });
 
+  // 导航相关 IPC
+  ipcMain.handle('tab:goBack', async (_, { tabId }: { tabId: string }) => {
+    if (tabManager) {
+      return tabManager.goBack(tabId);
+    }
+    throw new Error('TabManager not initialized');
+  });
+
+  ipcMain.handle('tab:goForward', async (_, { tabId }: { tabId: string }) => {
+    if (tabManager) {
+      return tabManager.goForward(tabId);
+    }
+    throw new Error('TabManager not initialized');
+  });
+
+  ipcMain.handle('tab:reload', async (_, { tabId }: { tabId: string }) => {
+    if (tabManager) {
+      return tabManager.reloadTab(tabId);
+    }
+    throw new Error('TabManager not initialized');
+  });
+
+  ipcMain.handle('tab:stop', async (_, { tabId }: { tabId: string }) => {
+    if (tabManager) {
+      return tabManager.stop(tabId);
+    }
+    throw new Error('TabManager not initialized');
+  });
+
+  ipcMain.handle('tab:navigate', async (_, { tabId, url }: { tabId: string; url: string }) => {
+    if (tabManager) {
+      return tabManager.navigateTab(tabId, url);
+    }
+    throw new Error('TabManager not initialized');
+  });
+
+  ipcMain.handle('tab:getNavigationState', async (_, { tabId }: { tabId: string }) => {
+    if (tabManager) {
+      return tabManager.getNavigationState(tabId);
+    }
+    throw new Error('TabManager not initialized');
+  });
+
   ipcMain.handle('tab:downloadUrl', async (_, { tabId, url }: { tabId: string; url: string }) => {
     if (!tabManager) {
       throw new Error('TabManager not initialized');
@@ -712,19 +756,109 @@ function setupIPC() {
     try {
       const userDataPath = app.getPath('userData');
       const configPath = join(userDataPath, 'panel-configs', namespace, `${key}.json`);
-      
+
       if (!existsSync(configPath)) {
         return { success: false, config: null };
       }
-      
+
       const configData = await readFile(configPath, 'utf-8');
       const config = JSON.parse(configData);
-      
+
       return { success: true, config };
     } catch (error: any) {
       console.error(`[IPC] 读取配置失败 (${namespace}/${key}):`, error);
       return { success: false, config: null, error: error.message };
     }
+  });
+
+  // Session 管理 IPC
+  ipcMain.handle('session:list', async () => {
+    const SessionStorage = await import('./session-storage');
+    const sessions = SessionStorage.getAllSessions();
+    // 标记正在运行的 session
+    if (tabManager) {
+      const runningSessionIds = new Set(
+        Array.from(tabManager.getTabs().values()).map(t => t.configId).filter(Boolean)
+      );
+      return sessions.map(s => ({
+        ...s,
+        isRunning: runningSessionIds.has(s.id),
+      }));
+    }
+    return sessions;
+  });
+
+  ipcMain.handle('session:get', async (_, { sessionId }: { sessionId: string }) => {
+    const SessionStorage = await import('./session-storage');
+    return SessionStorage.getSessionById(sessionId);
+  });
+
+  ipcMain.handle('session:create', async (_, { name, url, note }: { name: string; url: string; note?: string }) => {
+    const SessionStorage = await import('./session-storage');
+    const id = SessionStorage.generateSessionId(name);
+    return SessionStorage.saveSession({
+      id,
+      name,
+      url,
+      note,
+      partition: `persist:${id}`,
+    });
+  });
+
+  ipcMain.handle('session:delete', async (_, { sessionId }: { sessionId: string }) => {
+    const SessionStorage = await import('./session-storage');
+    // 先关闭该 session 的所有标签页
+    if (tabManager) {
+      const tabs = Array.from(tabManager.getTabs().values());
+      for (const tab of tabs) {
+        if (tab.configId === sessionId) {
+          await tabManager.closeTab(tab.id);
+        }
+      }
+    }
+    // 删除 session 配置
+    const deleted = SessionStorage.deleteSession(sessionId);
+    // 可选：删除缓存目录
+    // const cachePath = SessionStorage.getSessionCachePath(sessionId);
+    // if (existsSync(cachePath)) { rmSync(cachePath, { recursive: true }); }
+    return deleted;
+  });
+
+  ipcMain.handle('session:open', async (_, { sessionId }: { sessionId: string }) => {
+    const SessionStorage = await import('./session-storage');
+    const session = SessionStorage.getSessionById(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+    // 更新最后使用时间
+    SessionStorage.updateLastUsed(sessionId);
+    // 创建标签页
+    if (tabManager) {
+      const tab = await tabManager.createTab(session.id, session.url, session.id, session.name);
+      return tab;
+    }
+    throw new Error('TabManager not initialized');
+  });
+
+  // 应用管理 IPC（与 CLI/API 共享数据）
+  ipcMain.handle('app:list', async () => {
+    const AppStorage = await import('./app-storage');
+    return AppStorage.getAllApps();
+  });
+
+  ipcMain.handle('app:get', async (_, { appId }: { appId: string }) => {
+    const AppStorage = await import('./app-storage');
+    return AppStorage.getAppById(appId);
+  });
+
+  ipcMain.handle('app:save', async (_, { app: appConfig }: { app: any }) => {
+    const AppStorage = await import('./app-storage');
+    return AppStorage.saveApp(appConfig);
+  });
+
+  ipcMain.handle('app:delete', async (_, { appId }: { appId: string }) => {
+    const AppStorage = await import('./app-storage');
+    return AppStorage.deleteApp(appId);
   });
 
 }
