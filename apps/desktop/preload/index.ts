@@ -74,6 +74,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (appId: string) => ipcRenderer.invoke('app:delete', { appId }),
   },
 
+  // 应用列表更新事件（CLI/API 创建应用时触发）
+  onAppsUpdated: (callback: () => void) => {
+    ipcRenderer.on('apps:updated', () => callback());
+  },
+
   // Browser 操作
   browser: {
     navigate: (tabId: string, url: string) => 
@@ -201,6 +206,7 @@ declare global {
         save: (app: { id: string; name: string; url: string; icon?: string; color?: string; isFavorite?: boolean }) => Promise<any>;
         delete: (appId: string) => Promise<boolean>;
       };
+      onAppsUpdated: (callback: () => void) => void;
       network: {
         addRule: (tabId: string, rule: { id: string; pattern: string; enabled: boolean }) => Promise<{ success: boolean }>;
         removeRule: (tabId: string, ruleId: string) => Promise<{ success: boolean }>;

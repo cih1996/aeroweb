@@ -271,6 +271,7 @@ app.whenReady().then(async () => {
   try {
     apiServer = getApiServer();
     apiServer.setTabManager(tabManager!);
+    apiServer.setMainWindow(mainWindow!);
     await apiServer.start();
     console.log('[Main] HTTP API 服务器已启动');
   } catch (err) {

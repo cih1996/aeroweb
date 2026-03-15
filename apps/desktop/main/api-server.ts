@@ -4,7 +4,7 @@
  */
 import * as http from 'http';
 import { TabManager } from './windows/tab-manager';
-import { app } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import * as AppStorage from './app-storage';
 import * as SessionStorage from './session-storage';
 
@@ -19,11 +19,23 @@ interface ApiResponse {
 export class ApiServer {
   private server: http.Server | null = null;
   private tabManager: TabManager | null = null;
+  private mainWindow: BrowserWindow | null = null;
 
   constructor() {}
 
   setTabManager(tabManager: TabManager) {
     this.tabManager = tabManager;
+  }
+
+  setMainWindow(mainWindow: BrowserWindow) {
+    this.mainWindow = mainWindow;
+  }
+
+  // 通知渲染进程应用列表已更新
+  private notifyAppsUpdated() {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('apps:updated');
+    }
   }
 
   start(): Promise<void> {
@@ -243,6 +255,9 @@ export class ApiServer {
     // 确保应用存在，不存在则自动创建
     const appName = name || configName || appId || 'CLI App';
     const appInfo = AppStorage.ensureApp(appId || '', url, appName);
+
+    // 通知渲染进程应用列表已更新（可能创建了新应用）
+    this.notifyAppsUpdated();
 
     // 缓存/会话 ID 优先级：
     // 1. 显式传入的 configId 或 session 参数

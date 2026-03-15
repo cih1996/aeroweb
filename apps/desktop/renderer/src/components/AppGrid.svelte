@@ -10,7 +10,7 @@
   let loading = true;
   let showModal = false;
   let editingApp: AppConfig | null = null;
-  
+
   // 表单数据
   let formData = {
     id: '',
@@ -26,6 +26,14 @@
   onMount(async () => {
     await loadApps();
     loading = false;
+
+    // 监听来自主进程的刷新事件
+    if (window.electronAPI?.onAppsUpdated) {
+      window.electronAPI.onAppsUpdated(() => {
+        console.log('[AppGrid] 收到应用更新通知，刷新列表');
+        loadApps();
+      });
+    }
   });
 
   async function loadApps() {
@@ -205,10 +213,15 @@
 <div class="app-grid-container">
   <div class="header">
     <h2>应用中心</h2>
-    <button class="btn-add" on:click={openCreateModal}>
-      <span class="icon">+</span>
-      添加应用
-    </button>
+    <div class="header-actions">
+      <button class="btn-refresh" on:click={refreshApps} title="刷新应用列表">
+        <span class="icon">↻</span>
+      </button>
+      <button class="btn-add" on:click={openCreateModal}>
+        <span class="icon">+</span>
+        添加应用
+      </button>
+    </div>
   </div>
 
   {#if loading}
@@ -468,6 +481,37 @@
     font-size: var(--font-size-2xl);
     font-weight: var(--font-weight-bold);
     color: var(--text-primary);
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+  }
+
+  .btn-refresh {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xl);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+
+  .btn-refresh:hover {
+    background: var(--accent-bg-hover);
+    border-color: var(--border-hover);
+    transform: rotate(180deg);
+  }
+
+  .btn-refresh:active {
+    transform: rotate(360deg);
   }
 
   .btn-add {
