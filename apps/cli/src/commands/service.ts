@@ -2,12 +2,15 @@ import { Command } from 'commander';
 import { spawn, execSync, ChildProcess } from 'child_process';
 import { existsSync, writeFileSync, readFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
+import * as os from 'os';
 import * as http from 'http';
 import { output } from '../utils/output';
 
 const API_PORT = parseInt(process.env.POLYWEB_PORT || '9528', 10);
 const API_HOST = process.env.POLYWEB_HOST || '127.0.0.1';
-const PID_FILE = join(process.env.HOME || '/tmp', '.polyweb.pid');
+const IS_WIN = os.platform() === 'win32';
+const HOME = os.homedir();
+const PID_FILE = join(HOME, '.polyweb.pid');
 
 // 检查服务是否运行
 async function isRunning(): Promise<boolean> {
@@ -36,16 +39,20 @@ async function isRunning(): Promise<boolean> {
   });
 }
 
-// 获取项目路径
+// 获取项目路径（开发模式）
 function getProjectPath(): string | null {
   if (process.env.POLYWEB_PROJECT_PATH && existsSync(process.env.POLYWEB_PROJECT_PATH)) {
     return process.env.POLYWEB_PROJECT_PATH;
   }
 
-  const possiblePaths = [
+  const possiblePaths = IS_WIN ? [
+    join(HOME, 'dev', 'polyWebsAI'),
+    join(HOME, 'polyWebsAI'),
+    'C:\\dev\\polyWebsAI',
+  ] : [
     '/Users/cih1996/dev/archive/polyWebsAI',
-    join(process.env.HOME || '', 'dev/archive/polyWebsAI'),
-    join(process.env.HOME || '', 'polyWebsAI'),
+    join(HOME, 'dev/archive/polyWebsAI'),
+    join(HOME, 'polyWebsAI'),
   ];
 
   for (const p of possiblePaths) {
@@ -59,11 +66,16 @@ function getProjectPath(): string | null {
 
 // 获取打包应用路径
 function getAppPath(): string | null {
-  const possiblePaths = [
+  const possiblePaths = IS_WIN ? [
+    join(HOME, 'AppData', 'Local', 'Programs', 'AeroWeb', 'AeroWeb.exe'),
+    join(HOME, 'AppData', 'Local', 'AeroWeb', 'AeroWeb.exe'),
+    'C:\\Program Files\\AeroWeb\\AeroWeb.exe',
+    'C:\\Program Files (x86)\\AeroWeb\\AeroWeb.exe',
+  ] : [
     '/Applications/AeroWeb.app',
     '/Applications/PolyWeb.app',
-    join(process.env.HOME || '', 'Applications/AeroWeb.app'),
-    join(process.env.HOME || '', 'Applications/PolyWeb.app'),
+    join(HOME, 'Applications/AeroWeb.app'),
+    join(HOME, 'Applications/PolyWeb.app'),
   ];
 
   for (const p of possiblePaths) {
@@ -89,8 +101,13 @@ async function waitForReady(maxSeconds: number = 30): Promise<boolean> {
 // 检查端口是否被占用
 function isPortInUse(port: number): boolean {
   try {
-    const result = execSync(`lsof -i :${port} -t 2>/dev/null`, { encoding: 'utf-8' });
-    return result.trim().length > 0;
+    if (IS_WIN) {
+      const result = execSync(`netstat -ano | findstr :${port}`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] });
+      return result.trim().length > 0;
+    } else {
+      const result = execSync(`lsof -i :${port} -t 2>/dev/null`, { encoding: 'utf-8' });
+      return result.trim().length > 0;
+    }
   } catch {
     return false;
   }
@@ -99,11 +116,42 @@ function isPortInUse(port: number): boolean {
 // 杀掉占用端口的进程
 function killPortProcess(port: number): boolean {
   try {
-    execSync(`lsof -i :${port} -t | xargs kill -9 2>/dev/null`, { stdio: 'ignore' });
-    return true;
+    if (IS_WIN) {
+      // Windows: 找到 PID 并杀掉
+      const result = execSync(`netstat -ano | findstr :${port}`, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] });
+      const lines = result.trim().split('\n');
+      const pids = new Set<string>();
+      for (const line of lines) {
+        const parts = line.trim().split(/\s+/);
+        const pid = parts[parts.length - 1];
+        if (pid && /^\d+$/.test(pid) && pid !== '0') {
+          pids.add(pid);
+        }
+      }
+      for (const pid of pids) {
+        try {
+          execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' });
+        } catch { /* ignore */ }
+      }
+      return pids.size > 0;
+    } else {
+      execSync(`lsof -i :${port} -t | xargs kill -9 2>/dev/null`, { stdio: 'ignore' });
+      return true;
+    }
   } catch {
     return false;
   }
+}
+
+// 杀掉进程（按名称）
+function killProcess(name: string): void {
+  try {
+    if (IS_WIN) {
+      execSync(`taskkill /F /IM "${name}" 2>nul`, { stdio: 'ignore' });
+    } else {
+      execSync(`pkill -f "${name}" 2>/dev/null || true`, { stdio: 'ignore' });
+    }
+  } catch { /* ignore */ }
 }
 
 export const serviceCommand = new Command('service').description('AeroWeb 服务管理');
@@ -180,7 +228,7 @@ serviceCommand
           killPortProcess(API_PORT);
           await new Promise(r => setTimeout(r, 1000));
         } else {
-          output.error(`端口 ${API_PORT} 被占用，使用 --force 强制启动或 polyweb stop 清理`);
+          output.error(`端口 ${API_PORT} 被占用，使用 --force 强制启动或 aeroweb stop 清理`);
           process.exit(1);
         }
       }
@@ -203,10 +251,11 @@ serviceCommand
       const appPath = getAppPath();
       if (appPath && !opts.dev) {
         startMethod = 'app';
-        child = spawn('open', ['-a', appPath], {
-          detached: true,
-          stdio: 'ignore',
-        });
+        if (IS_WIN) {
+          child = spawn(appPath, [], { detached: true, stdio: 'ignore' });
+        } else {
+          child = spawn('open', ['-a', appPath], { detached: true, stdio: 'ignore' });
+        }
       } else {
         // 使用开发模式
         const projectPath = getProjectPath();
@@ -216,27 +265,36 @@ serviceCommand
         }
 
         startMethod = 'dev';
+        const logFile = IS_WIN ? join(HOME, 'polyweb.log') : '/tmp/polyweb.log';
 
-        // 使用 nohup 确保进程不会因终端关闭而退出
-        child = spawn('sh', ['-c', `cd "${projectPath}" && nohup pnpm dev > /tmp/polyweb.log 2>&1 &`], {
-          detached: true,
-          stdio: 'ignore',
-        });
+        if (IS_WIN) {
+          // Windows: 使用 start 命令在后台运行
+          child = spawn('cmd', ['/c', `start /B cmd /c "cd /d "${projectPath}" && pnpm dev > "${logFile}" 2>&1"`], {
+            detached: true,
+            stdio: 'ignore',
+            shell: true,
+          });
+        } else {
+          // macOS/Linux: 使用 nohup
+          child = spawn('sh', ['-c', `cd "${projectPath}" && nohup pnpm dev > ${logFile} 2>&1 &`], {
+            detached: true,
+            stdio: 'ignore',
+          });
+        }
       }
 
       child.unref();
 
-      // 保存 PID（仅开发模式有意义）
+      // 保存 PID
       if (child.pid) {
         try {
           writeFileSync(PID_FILE, String(child.pid));
-        } catch {
-          // 忽略写入失败
-        }
+        } catch { /* ignore */ }
       }
 
       // 等待服务就绪
       const ready = await waitForReady(opts.wait ? 30 : 5);
+      const logFile = IS_WIN ? join(HOME, 'polyweb.log') : '/tmp/polyweb.log';
 
       if (ready) {
         output.success({
@@ -245,27 +303,24 @@ serviceCommand
           method: startMethod,
         }, 'AeroWeb 服务已就绪');
       } else if (opts.wait) {
-        // 检查日志获取错误信息
         let errorHint = '';
         try {
-          const log = readFileSync('/tmp/polyweb.log', 'utf-8');
+          const log = readFileSync(logFile, 'utf-8');
           if (log.includes('EADDRINUSE') || log.includes('already in use')) {
-            errorHint = '端口冲突，尝试 polyweb start --force';
+            errorHint = '端口冲突，尝试 aeroweb start --force';
           } else if (log.includes('Error')) {
             const errorLine = log.split('\n').find(l => l.includes('Error'));
             errorHint = errorLine || '';
           }
-        } catch {
-          // 忽略
-        }
+        } catch { /* ignore */ }
 
-        output.error(`启动超时${errorHint ? ': ' + errorHint : '，请检查 /tmp/polyweb.log'}`);
+        output.error(`启动超时${errorHint ? ': ' + errorHint : '，请检查 ' + logFile}`);
         process.exit(1);
       } else {
         output.success({
           starting: true,
           method: startMethod,
-          hint: '使用 polyweb status 检查状态'
+          hint: '使用 aeroweb status 检查状态'
         }, 'AeroWeb 启动中...');
       }
     } catch (e: any) {
@@ -284,12 +339,13 @@ serviceCommand
       const wasRunning = await isRunning();
 
       // 停止 Electron 进程
-      try {
-        execSync('pkill -f "Electron.*polyWebsAI" 2>/dev/null || true', { stdio: 'ignore' });
-        execSync('pkill -f "Electron.*AeroWeb" 2>/dev/null || true', { stdio: 'ignore' });
-        execSync('pkill -f "Electron.*PolyWeb" 2>/dev/null || true', { stdio: 'ignore' });
-      } catch {
-        // 忽略
+      if (IS_WIN) {
+        killProcess('AeroWeb.exe');
+        killProcess('electron.exe');
+      } else {
+        killProcess('Electron.*polyWebsAI');
+        killProcess('Electron.*AeroWeb');
+        killProcess('Electron.*PolyWeb');
       }
 
       if (opts.force) {
@@ -297,26 +353,24 @@ serviceCommand
         killPortProcess(API_PORT);
         killPortProcess(3800);
 
-        try {
-          execSync('pkill -f "turbo.*dev" 2>/dev/null || true', { stdio: 'ignore' });
-          execSync('pkill -f "vite.*3800" 2>/dev/null || true', { stdio: 'ignore' });
-        } catch {
-          // 忽略
+        if (IS_WIN) {
+          killProcess('node.exe');
+        } else {
+          killProcess('turbo.*dev');
+          killProcess('vite.*3800');
         }
       }
 
       // 清理 PID 文件
       try {
         unlinkSync(PID_FILE);
-      } catch {
-        // 忽略
-      }
+      } catch { /* ignore */ }
 
       // 等待确认停止
       await new Promise(r => setTimeout(r, 2000));
 
       if (await isRunning()) {
-        output.error('停止失败，尝试 polyweb stop --force');
+        output.error('停止失败，尝试 aeroweb stop --force');
         process.exit(1);
       } else {
         output.success({
@@ -339,11 +393,12 @@ serviceCommand
   .action(async (opts) => {
     try {
       // 先停止
-      try {
-        execSync('pkill -f "Electron.*polyWebsAI" 2>/dev/null || true', { stdio: 'ignore' });
-        execSync('pkill -f "Electron.*AeroWeb" 2>/dev/null || true', { stdio: 'ignore' });
-      } catch {
-        // 忽略
+      if (IS_WIN) {
+        killProcess('AeroWeb.exe');
+        killProcess('electron.exe');
+      } else {
+        killProcess('Electron.*polyWebsAI');
+        killProcess('Electron.*AeroWeb');
       }
 
       if (opts.force) {
@@ -381,7 +436,6 @@ export async function ensureRunning(silent: boolean = false): Promise<boolean> {
 
   // 检查端口占用但服务未响应的情况
   if (isPortInUse(API_PORT)) {
-    // 尝试清理僵尸进程
     killPortProcess(API_PORT);
     await new Promise(r => setTimeout(r, 1000));
   }
@@ -394,10 +448,11 @@ export async function ensureRunning(silent: boolean = false): Promise<boolean> {
   // 优先使用打包应用
   const appPath = getAppPath();
   if (appPath) {
-    spawn('open', ['-a', appPath], {
-      detached: true,
-      stdio: 'ignore',
-    }).unref();
+    if (IS_WIN) {
+      spawn(appPath, [], { detached: true, stdio: 'ignore' }).unref();
+    } else {
+      spawn('open', ['-a', appPath], { detached: true, stdio: 'ignore' }).unref();
+    }
   } else {
     // 使用开发模式
     const projectPath = getProjectPath();
@@ -408,10 +463,20 @@ export async function ensureRunning(silent: boolean = false): Promise<boolean> {
       return false;
     }
 
-    spawn('sh', ['-c', `cd "${projectPath}" && nohup pnpm dev > /tmp/polyweb.log 2>&1 &`], {
-      detached: true,
-      stdio: 'ignore',
-    }).unref();
+    const logFile = IS_WIN ? join(HOME, 'polyweb.log') : '/tmp/polyweb.log';
+
+    if (IS_WIN) {
+      spawn('cmd', ['/c', `start /B cmd /c "cd /d "${projectPath}" && pnpm dev > "${logFile}" 2>&1"`], {
+        detached: true,
+        stdio: 'ignore',
+        shell: true,
+      }).unref();
+    } else {
+      spawn('sh', ['-c', `cd "${projectPath}" && nohup pnpm dev > ${logFile} 2>&1 &`], {
+        detached: true,
+        stdio: 'ignore',
+      }).unref();
+    }
   }
 
   // 等待服务就绪（最多 15 秒）
@@ -424,7 +489,8 @@ export async function ensureRunning(silent: boolean = false): Promise<boolean> {
     return true;
   } else {
     if (!silent) {
-      console.error('\x1b[31m[AeroWeb] 启动超时，请检查 /tmp/polyweb.log 或手动运行 polyweb start --dev\x1b[0m');
+      const logFile = IS_WIN ? join(HOME, 'polyweb.log') : '/tmp/polyweb.log';
+      console.error(`\x1b[31m[AeroWeb] 启动超时，请检查 ${logFile} 或手动运行 aeroweb start --dev\x1b[0m`);
     }
     return false;
   }

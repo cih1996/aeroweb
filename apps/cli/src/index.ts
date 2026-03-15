@@ -60,10 +60,26 @@ function install(): void {
     // 检查 PATH
     const pathEnv = process.env.PATH || '';
     const separator = os.platform() === 'win32' ? ';' : ':';
-    if (!pathEnv.split(separator).includes(binDir)) {
+    if (!pathEnv.split(separator).some(p => p.toLowerCase() === binDir.toLowerCase())) {
       console.log(`\n⚠️  提示: ${binDir} 不在 PATH 中`);
       if (os.platform() === 'win32') {
-        console.log(`   请将 ${binDir} 添加到系统环境变量 PATH`);
+        // Windows: 使用 setx 添加到用户 PATH
+        try {
+          // 获取当前用户 PATH
+          const userPath = execSync('reg query "HKCU\\Environment" /v Path', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] });
+          const match = userPath.match(/Path\s+REG_(?:EXPAND_)?SZ\s+(.+)/i);
+          const currentPath = match ? match[1].trim() : '';
+
+          if (!currentPath.toLowerCase().includes(binDir.toLowerCase())) {
+            const newPath = currentPath ? `${currentPath};${binDir}` : binDir;
+            execSync(`setx PATH "${newPath}"`, { stdio: 'ignore' });
+            console.log(`   ✅ 已自动添加到用户 PATH`);
+            console.log(`   ⚠️  请重新打开命令行窗口使 PATH 生效`);
+          }
+        } catch {
+          console.log(`   请手动将 ${binDir} 添加到系统环境变量 PATH`);
+          console.log(`   或运行: setx PATH "%PATH%;${binDir}"`);
+        }
       } else {
         const rcFile = (process.env.SHELL || '').includes('zsh') ? '~/.zshrc' : '~/.bashrc';
         // 自动添加到 shell 配置
