@@ -34,6 +34,7 @@
   "dependencies": {
     "@qiyi/browser-service": "workspace:*",
     "@qiyi/shared": "workspace:*",
+    "body-parser": "^1.20.2",
     "express": "^4.18.2",
     "glob": "^13.0.0"
   },

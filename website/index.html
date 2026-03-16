@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AeroWeb - AI 专属浏览器</title>
+  <meta name="description" content="为 AI Agent 设计的浏览器，通过 CLI/MCP 控制网页操作，支持多缓存实例隔离">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-primary: #0a0a0f;
+      --bg-secondary: #12121a;
+      --bg-card: #1a1a24;
+      --text-primary: #ffffff;
+      --text-secondary: #a0a0b0;
+      --accent: #6366f1;
+      --accent-light: #818cf8;
+      --accent-glow: rgba(99, 102, 241, 0.4);
+      --green: #22c55e;
+      --border: rgba(255, 255, 255, 0.08);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* 背景动画 */
+    .bg-gradient {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.15), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 60%, rgba(139, 92, 246, 0.1), transparent),
+        radial-gradient(ellipse 50% 30% at 20% 80%, rgba(59, 130, 246, 0.08), transparent);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* 导航 */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 16px 0;
+      background: rgba(10, 10, 15, 0.8);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    nav .container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 20px;
+      font-weight: 700;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--text-primary);
+    }
+
+    .nav-btn {
+      background: var(--accent);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .nav-btn:hover {
+      background: var(--accent-light);
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    /* Hero */
+    .hero {
+      padding: 160px 0 100px;
+      text-align: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      padding: 8px 16px;
+      border-radius: 100px;
+      font-size: 13px;
+      color: var(--accent-light);
+      margin-bottom: 24px;
+    }
+
+    .badge::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    h1 {
+      font-size: clamp(40px, 8vw, 72px);
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: 24px;
+      background: linear-gradient(135deg, #fff 0%, #a0a0b0 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-subtitle {
+      font-size: 18px;
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin: 0 auto 40px;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      color: white;
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px var(--accent-glow);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-secondary);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    /* 代码展示 */
+    .code-preview {
+      margin-top: 60px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 20px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .code-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .code-dot.red { background: #ff5f57; }
+    .code-dot.yellow { background: #febc2e; }
+    .code-dot.green { background: #28c840; }
+
+    .code-title {
+      margin-left: 12px;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .code-body {
+      padding: 24px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 14px;
+      line-height: 1.8;
+      overflow-x: auto;
+    }
+
+    .code-line {
+      display: flex;
+      gap: 16px;
+    }
+
+    .code-prompt {
+      color: var(--green);
+      user-select: none;
+    }
+
+    .code-cmd {
+      color: var(--accent-light);
+    }
+
+    .code-arg {
+      color: #fbbf24;
+    }
+
+    .code-comment {
+      color: #6b7280;
+    }
+
+    .code-output {
+      color: var(--text-secondary);
+      padding-left: 24px;
+    }
+
+    /* 特性 */
+    .features {
+      padding: 100px 0;
+    }
+
+    .section-title {
+      text-align: center;
+      font-size: 36px;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    .section-subtitle {
+      text-align: center;
+      color: var(--text-secondary);
+      margin-bottom: 60px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      transition: all 0.3s;
+    }
+
+    .feature-card:hover {
+      border-color: rgba(99, 102, 241, 0.3);
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(139, 92, 246, 0.2));
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+
+    .feature-card h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .feature-card p {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    /* 安装 */
+    .install {
+      padding: 100px 0;
+    }
+
+    .install-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px;
+      text-align: center;
+    }
+
+    .install-box h2 {
+      font-size: 28px;
+      margin-bottom: 16px;
+    }
+
+    .install-box p {
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+    }
+
+    .install-tabs {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .install-tab {
+      padding: 10px 20px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .install-tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    .install-cmd {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 14px;
+      color: var(--green);
+      text-align: left;
+      position: relative;
+      overflow-x: auto;
+    }
+
+    .install-cmd .copy-btn {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .install-cmd .copy-btn:hover {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+
+    /* 用例 */
+    .usecases {
+      padding: 100px 0;
+    }
+
+    .usecase-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .usecase-card {
+      background: linear-gradient(135deg, var(--bg-card), var(--bg-secondary));
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      transition: all 0.3s;
+    }
+
+    .usecase-card:hover {
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+
+    .usecase-card h4 {
+      font-size: 16px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .usecase-card p {
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    /* Footer */
+    footer {
+      padding: 60px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    footer p {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    footer a {
+      color: var(--accent-light);
+      text-decoration: none;
+    }
+
+    /* 响应式 */
+    @media (max-width: 768px) {
+      .nav-links {
+        display: none;
+      }
+
+      .hero {
+        padding: 120px 0 60px;
+      }
+
+      .hero-buttons {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .install-box {
+        padding: 32px 20px;
+      }
+
+      .install-tabs {
+        flex-wrap: wrap;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-gradient"></div>
+
+  <nav>
+    <div class="container">
+      <a href="#" class="logo">
+        <div class="logo-icon">🌐</div>
+        AeroWeb
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features">特性</a></li>
+        <li><a href="#install">安装</a></li>
+        <li><a href="#usecases">用例</a></li>
+        <li><a href="https://github.com/cih1996/aeroweb" target="_blank">GitHub</a></li>
+      </ul>
+      <a href="https://github.com/cih1996/aeroweb/releases/latest" class="nav-btn">下载</a>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="container">
+      <div class="badge">v1.2.2 已发布</div>
+      <h1>AI 专属浏览器</h1>
+      <p class="hero-subtitle">
+        为 AI Agent 设计的浏览器，通过 CLI/MCP 控制网页操作。
+        支持多缓存实例隔离，让 AI 像人一样浏览网页。
+      </p>
+      <div class="hero-buttons">
+        <a href="#install" class="btn btn-primary">
+          <span>快速开始</span>
+          <span>→</span>
+        </a>
+        <a href="https://github.com/cih1996/aeroweb" class="btn btn-secondary" target="_blank">
+          <span>⭐</span>
+          <span>GitHub</span>
+        </a>
+      </div>
+
+      <div class="code-preview">
+        <div class="code-header">
+          <div class="code-dot red"></div>
+          <div class="code-dot yellow"></div>
+          <div class="code-dot green"></div>
+          <span class="code-title">Terminal</span>
+        </div>
+        <div class="code-body">
+          <div class="code-line">
+            <span class="code-prompt">$</span>
+            <span><span class="code-cmd">aeroweb</span> tab new <span class="code-arg">"https://github.com"</span></span>
+          </div>
+          <div class="code-output">✓ 标签页已创建 (tab_1)</div>
+          <br>
+          <div class="code-line">
+            <span class="code-prompt">$</span>
+            <span><span class="code-cmd">aeroweb</span> tab screenshot <span class="code-arg">@last</span> -o screenshot.png</span>
+          </div>
+          <div class="code-output">✓ 截图已保存</div>
+          <br>
+          <div class="code-line">
+            <span class="code-prompt">$</span>
+            <span><span class="code-cmd">aeroweb</span> tab exec <span class="code-arg">@last</span> -e <span class="code-arg">"document.title"</span></span>
+          </div>
+          <div class="code-output">"GitHub: Let's build from here"</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="features" id="features">
+    <div class="container">
+      <h2 class="section-title">核心特性</h2>
+      <p class="section-subtitle">专为 AI Agent 设计的浏览器能力</p>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3>CLI 控制</h3>
+          <p>通过命令行完全控制浏览器，打开页面、点击、输入、截图、执行 JS，一切皆可自动化。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔒</div>
+          <h3>多缓存隔离</h3>
+          <p>每个会话独立缓存，支持多账号同时登录同一网站，互不干扰。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔄</div>
+          <h3>智能复用</h3>
+          <p>相同网站自动复用已有标签页，避免重复创建，节省资源。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📸</div>
+          <h3>截图 & 快照</h3>
+          <p>一键截图或获取 DOM 快照，让 AI 能"看到"页面内容。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🖱️</div>
+          <h3>模拟交互</h3>
+          <p>点击、输入、上传文件，模拟真实用户操作，绕过反爬检测。</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔌</div>
+          <h3>MCP 协议</h3>
+          <p>支持 Model Context Protocol，与 Claude 等 AI 无缝集成。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="install" id="install">
+    <div class="container">
+      <div class="install-box">
+        <h2>一键安装</h2>
+        <p>选择你的操作系统，复制命令即可安装</p>
+
+        <div class="install-tabs">
+          <button class="install-tab active" onclick="showInstall('mac')">macOS</button>
+          <button class="install-tab" onclick="showInstall('linux')">Linux</button>
+          <button class="install-tab" onclick="showInstall('win')">Windows</button>
+        </div>
+
+        <div class="install-cmd" id="install-mac">
+          curl -fsSL https://github.com/cih1996/aeroweb/releases/latest/download/aeroweb-macos-$(uname -m | sed 's/x86_64/x64/;s/aarch64/arm64/') -o /tmp/aeroweb && chmod +x /tmp/aeroweb && /tmp/aeroweb
+          <button class="copy-btn" onclick="copyCmd(this)">复制</button>
+        </div>
+        <div class="install-cmd" id="install-linux" style="display:none;">
+          curl -fsSL https://github.com/cih1996/aeroweb/releases/latest/download/aeroweb-linux-x64 -o /tmp/aeroweb && chmod +x /tmp/aeroweb && /tmp/aeroweb
+          <button class="copy-btn" onclick="copyCmd(this)">复制</button>
+        </div>
+        <div class="install-cmd" id="install-win" style="display:none;">
+          curl -fsSL https://github.com/cih1996/aeroweb/releases/latest/download/aeroweb-win-x64.exe -o aeroweb.exe && aeroweb.exe
+          <button class="copy-btn" onclick="copyCmd(this)">复制</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="usecases" id="usecases">
+    <div class="container">
+      <h2 class="section-title">应用场景</h2>
+      <p class="section-subtitle">AI + 浏览器，无限可能</p>
+
+      <div class="usecase-grid">
+        <div class="usecase-card">
+          <h4>🤖 AI 自动化</h4>
+          <p>让 AI Agent 自主浏览网页、填写表单、提交数据</p>
+        </div>
+        <div class="usecase-card">
+          <h4>📊 数据采集</h4>
+          <p>自动登录、翻页、提取数据，支持复杂交互场景</p>
+        </div>
+        <div class="usecase-card">
+          <h4>🧪 自动化测试</h4>
+          <p>E2E 测试、回归测试，截图对比，生成报告</p>
+        </div>
+        <div class="usecase-card">
+          <h4>👥 多账号管理</h4>
+          <p>同时登录多个账号，独立缓存互不干扰</p>
+        </div>
+        <div class="usecase-card">
+          <h4>📱 社交媒体</h4>
+          <p>自动发帖、回复、点赞，管理多个社交账号</p>
+        </div>
+        <div class="usecase-card">
+          <h4>🛒 电商运营</h4>
+          <p>商品上架、价格监控、订单处理自动化</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <p>
+        Made with ❤️ by <a href="https://github.com/cih1996" target="_blank">cih1996</a>
+        · <a href="https://github.com/cih1996/aeroweb" target="_blank">GitHub</a>
+        · MIT License
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    function showInstall(os) {
+      document.querySelectorAll('.install-cmd').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.install-tab').forEach(el => el.classList.remove('active'));
+      document.getElementById('install-' + os).style.display = 'block';
+      event.target.classList.add('active');
+    }
+
+    function copyCmd(btn) {
+      const cmd = btn.parentElement.textContent.replace('复制', '').trim();
+      navigator.clipboard.writeText(cmd);
+      btn.textContent = '已复制!';
+      setTimeout(() => btn.textContent = '复制', 2000);
+    }
+
+    // 平滑滚动
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function(e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+  </script>
+</body>
+</html>
