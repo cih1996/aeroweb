@@ -1,6 +1,6 @@
 {
   "name": "@qiyi/desktop",
-  "version": "1.0.0",
+  "version": "1.2.4",
   "private": true,
   "main": "./dist/main/index.js",
   "author": "cih1996",
