@@ -252,6 +252,55 @@ export class ApiServer {
       return { success: false, error: 'url is required' };
     }
 
+    // 缓存/会话 ID 优先级：
+    // 1. 显式传入的 configId 或 session 参数
+    // 2. 使用 AI 默认缓存 "ai-default"（确保 AI 创建的 tab 复用同一缓存）
+    const sessionId = configId || sessionParam || 'ai-default';
+
+    // 解析 URL 获取 host（用于复用判断）
+    let targetHost: string;
+    try {
+      const parsedUrl = new URL(url);
+      targetHost = parsedUrl.host; // 包含端口号
+    } catch {
+      return { success: false, error: 'Invalid URL' };
+    }
+
+    // 查找是否有相同 host + session 的已有标签页
+    const existingTabs = await this.tabManager.listTabs();
+    const matchingTab = existingTabs.find((tab) => {
+      // 检查 session/configId 是否匹配
+      if (tab.configId !== sessionId) return false;
+      // 检查 host 是否匹配
+      try {
+        const tabHost = new URL(tab.url).host;
+        return tabHost === targetHost;
+      } catch {
+        return false;
+      }
+    });
+
+    // 如果找到匹配的标签页，复用它（导航到新 URL）
+    if (matchingTab) {
+      // 导航到新 URL
+      await this.tabManager.navigateTab(matchingTab.id, url);
+      // 激活该标签页
+      await this.tabManager.activateTab(matchingTab.id);
+      return {
+        success: true,
+        data: {
+          id: matchingTab.id,
+          appId: matchingTab.appId,
+          appName: matchingTab.configName,
+          url: url,
+          title: matchingTab.title,
+          session: sessionId,
+          reused: true, // 标记为复用
+        },
+      };
+    }
+
+    // 没有匹配的标签页，创建新的
     // 确保应用存在，不存在则自动创建
     const appName = name || configName || appId || 'CLI App';
     const appInfo = AppStorage.ensureApp(appId || '', url, appName);
@@ -259,13 +308,7 @@ export class ApiServer {
     // 通知渲染进程应用列表已更新（可能创建了新应用）
     this.notifyAppsUpdated();
 
-    // 缓存/会话 ID 优先级：
-    // 1. 显式传入的 configId 或 session 参数
-    // 2. 使用 AI 默认缓存 "ai-default"（确保 AI 创建的 tab 复用同一缓存）
-    const sessionId = configId || sessionParam || 'ai-default';
     const tabConfigName = configName || appInfo.name;
-
-    const id = `tab_${appInfo.id}_${Date.now()}`;
     const tab = await this.tabManager.createTab(appInfo.id, url, sessionId, tabConfigName);
     return {
       success: true,
@@ -276,6 +319,7 @@ export class ApiServer {
         url: tab.url,
         title: tab.title,
         session: sessionId,
+        reused: false,
       },
     };
   }
