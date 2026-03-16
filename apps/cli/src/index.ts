@@ -63,7 +63,7 @@ function install(): void {
     if (!pathEnv.split(separator).some(p => p.toLowerCase() === binDir.toLowerCase())) {
       console.log(`\n⚠️  提示: ${binDir} 不在 PATH 中`);
       if (os.platform() === 'win32') {
-        // Windows: 使用 setx 添加到用户 PATH
+        // Windows: 使用 reg add 直接修改注册表（避免 setx 的 1024 字符限制）
         try {
           // 获取当前用户 PATH
           const userPath = execSync('reg query "HKCU\\Environment" /v Path', { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'ignore'] });
@@ -72,13 +72,17 @@ function install(): void {
 
           if (!currentPath.toLowerCase().includes(binDir.toLowerCase())) {
             const newPath = currentPath ? `${currentPath};${binDir}` : binDir;
-            execSync(`setx PATH "${newPath}"`, { stdio: 'ignore' });
+            // 使用 reg add 而不是 setx，避免 1024 字符限制
+            execSync(`reg add "HKCU\\Environment" /v Path /t REG_EXPAND_SZ /d "${newPath}" /f`, { stdio: 'ignore' });
+            // 广播环境变量变更消息
+            execSync('setx AEROWEB_INSTALLED 1', { stdio: 'ignore' });
             console.log(`   ✅ 已自动添加到用户 PATH`);
             console.log(`   ⚠️  请重新打开命令行窗口使 PATH 生效`);
           }
         } catch {
           console.log(`   请手动将 ${binDir} 添加到系统环境变量 PATH`);
-          console.log(`   或运行: setx PATH "%PATH%;${binDir}"`);
+          console.log(`   或运行以下命令（管理员模式）:`);
+          console.log(`   reg add "HKCU\\Environment" /v Path /t REG_EXPAND_SZ /d "%PATH%;${binDir}" /f`);
         }
       } else {
         const rcFile = (process.env.SHELL || '').includes('zsh') ? '~/.zshrc' : '~/.bashrc';
