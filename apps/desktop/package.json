@@ -35,8 +35,20 @@
     "@qiyi/browser-service": "workspace:*",
     "@qiyi/shared": "workspace:*",
     "body-parser": "^1.20.2",
+    "bytes": "^3.1.2",
+    "content-type": "^1.0.5",
+    "debug": "^4.3.4",
+    "depd": "^2.0.0",
+    "destroy": "^1.2.0",
     "express": "^4.18.2",
-    "glob": "^13.0.0"
+    "glob": "^13.0.0",
+    "http-errors": "^2.0.0",
+    "iconv-lite": "^0.6.3",
+    "on-finished": "^2.4.1",
+    "qs": "^6.11.0",
+    "raw-body": "^2.5.2",
+    "type-is": "^1.6.18",
+    "unpipe": "^1.0.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^3.0.0",
