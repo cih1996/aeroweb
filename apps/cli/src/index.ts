@@ -16,7 +16,8 @@ function getGlobalBinPath(): string {
   const platform = os.platform();
   if (platform === 'win32') {
     const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
-    return path.join(localAppData, 'Programs', 'aeroweb');
+    // 使用 aeroweb-cli 目录，避免和桌面应用 AeroWeb 目录冲突（Windows 不区分大小写）
+    return path.join(localAppData, 'Programs', 'aeroweb-cli');
   } else {
     // macOS 和 Linux 统一用 ~/.local/bin，避免 sudo
     return path.join(os.homedir(), '.local', 'bin');
