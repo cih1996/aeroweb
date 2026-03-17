@@ -163,6 +163,24 @@ export class ApiServer {
         const tabId = decodeURIComponent(pathname.split('/')[3]);
         const body = await this.parseBody(req);
         response = await this.handleNetworkWait(tabId, body);
+      } else if (pathname.match(/^\/api\/tabs\/[^/]+\/cookies$/) && method === 'GET') {
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
+        const cookieUrl = url.searchParams.get('url') || undefined;
+        const cookieName = url.searchParams.get('name') || undefined;
+        response = await this.handleGetCookies(tabId, cookieUrl, cookieName);
+      } else if (pathname.match(/^\/api\/tabs\/[^/]+\/cookies$/) && method === 'POST') {
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
+        const body = await this.parseBody(req);
+        response = await this.handleSetCookie(tabId, body);
+      } else if (pathname.match(/^\/api\/tabs\/[^/]+\/cookies$/) && method === 'DELETE') {
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
+        const cookieUrl = url.searchParams.get('url') || undefined;
+        const cookieName = url.searchParams.get('name');
+        if (cookieName) {
+          response = await this.handleRemoveCookie(tabId, cookieUrl, cookieName);
+        } else {
+          response = await this.handleClearCookies(tabId, cookieUrl);
+        }
       }
       // 应用管理 API
       else if (pathname === '/api/apps' && method === 'GET') {
@@ -622,6 +640,74 @@ export class ApiServer {
     return {
       success: result.success,
       data: { message: result.message, elapsed: result.elapsed, request: result.request },
+      error: result.success ? undefined : result.message,
+    };
+  }
+
+  // GET /api/tabs/:id/cookies
+  private async handleGetCookies(tabId: string, url?: string, name?: string): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+    const result = await this.tabManager.getCookies(tabId, url, name);
+    return {
+      success: result.success,
+      data: result.cookies.map(c => ({
+        name: c.name,
+        value: c.value,
+        domain: c.domain,
+        path: c.path,
+        secure: c.secure,
+        httpOnly: c.httpOnly,
+        expirationDate: c.expirationDate,
+        sameSite: c.sameSite,
+      })),
+      error: result.success ? undefined : result.message,
+    };
+  }
+
+  // POST /api/tabs/:id/cookies
+  private async handleSetCookie(tabId: string, body: any): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+    const { name, value, url, domain, path, secure, httpOnly, expirationDate, sameSite } = body;
+    if (!name) {
+      return { success: false, error: 'name is required' };
+    }
+    if (value === undefined) {
+      return { success: false, error: 'value is required' };
+    }
+    const result = await this.tabManager.setCookie(tabId, { name, value, url, domain, path, secure, httpOnly, expirationDate, sameSite });
+    return {
+      success: result.success,
+      data: result.success ? { message: result.message } : undefined,
+      error: result.success ? undefined : result.message,
+    };
+  }
+
+  // DELETE /api/tabs/:id/cookies?name=xxx
+  private async handleRemoveCookie(tabId: string, url: string | undefined, name: string): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+    const result = await this.tabManager.removeCookie(tabId, url, name);
+    return {
+      success: result.success,
+      data: result.success ? { message: result.message } : undefined,
+      error: result.success ? undefined : result.message,
+    };
+  }
+
+  // DELETE /api/tabs/:id/cookies (clear all)
+  private async handleClearCookies(tabId: string, url?: string): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+    const result = await this.tabManager.clearCookies(tabId, url);
+    return {
+      success: result.success,
+      data: result.success ? { message: result.message, count: result.count } : undefined,
       error: result.success ? undefined : result.message,
     };
   }

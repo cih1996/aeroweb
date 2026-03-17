@@ -521,3 +521,99 @@ tabCommand
       process.exit(1);
     }
   });
+
+// Cookie - 获取
+tabCommand
+  .command('cookies <tabId>')
+  .alias('cookie')
+  .description('获取 Cookie')
+  .option('-n, --name <name>', '指定 Cookie 名称')
+  .option('-u, --url <url>', '指定 URL')
+  .action(async (tabIdInput, o) => {
+    try {
+      const tabId = await resolveTabId(tabIdInput);
+      const cookies = await withLastTab(tabId, () => client.getCookies(tabId, o.url, o.name));
+
+      if (cookies.length === 0) {
+        output.success([], '暂无 Cookie');
+      } else {
+        const summary = cookies.map(c => ({
+          name: c.name,
+          value: c.value.length > 30 ? c.value.substring(0, 30) + '...' : c.value,
+          domain: c.domain,
+          path: c.path,
+          secure: c.secure ? '✓' : '',
+          httpOnly: c.httpOnly ? '✓' : '',
+        }));
+        output.table(summary, ['name', 'value', 'domain', 'path', 'secure', 'httpOnly']);
+      }
+    } catch (e: any) {
+      output.error(e.message);
+      process.exit(1);
+    }
+  });
+
+// Cookie - 设置
+tabCommand
+  .command('cookie-set <tabId> <name> <value>')
+  .description('设置 Cookie')
+  .option('-u, --url <url>', '指定 URL')
+  .option('-d, --domain <domain>', '域名')
+  .option('-p, --path <path>', '路径', '/')
+  .option('--secure', '仅 HTTPS')
+  .option('--http-only', '仅 HTTP（JS 不可访问）')
+  .option('-e, --expires <days>', '过期天数')
+  .action(async (tabIdInput, name, value, o) => {
+    try {
+      const tabId = await resolveTabId(tabIdInput);
+      const cookie: any = { name, value };
+      if (o.url) cookie.url = o.url;
+      if (o.domain) cookie.domain = o.domain;
+      if (o.path) cookie.path = o.path;
+      if (o.secure) cookie.secure = true;
+      if (o.httpOnly) cookie.httpOnly = true;
+      if (o.expires) {
+        const days = parseInt(o.expires, 10);
+        cookie.expirationDate = Math.floor(Date.now() / 1000) + days * 24 * 60 * 60;
+      }
+
+      const r = await withLastTab(tabId, () => client.setCookie(tabId, cookie));
+      output.success(r, `Cookie '${name}' 已设置`);
+    } catch (e: any) {
+      output.error(e.message);
+      process.exit(1);
+    }
+  });
+
+// Cookie - 删除
+tabCommand
+  .command('cookie-delete <tabId> <name>')
+  .alias('cookie-del')
+  .description('删除指定 Cookie')
+  .option('-u, --url <url>', '指定 URL')
+  .action(async (tabIdInput, name, o) => {
+    try {
+      const tabId = await resolveTabId(tabIdInput);
+      const r = await withLastTab(tabId, () => client.removeCookie(tabId, name, o.url));
+      output.success(r, `Cookie '${name}' 已删除`);
+    } catch (e: any) {
+      output.error(e.message);
+      process.exit(1);
+    }
+  });
+
+// Cookie - 清空
+tabCommand
+  .command('cookies-clear <tabId>')
+  .description('清空所有 Cookie')
+  .option('-u, --url <url>', '只清除指定 URL 的 Cookie')
+  .action(async (tabIdInput, o) => {
+    try {
+      const tabId = await resolveTabId(tabIdInput);
+      const r = await withLastTab(tabId, () => client.clearCookies(tabId, o.url));
+      output.success(r, `已清空 ${r.count} 个 Cookie`);
+    } catch (e: any) {
+      output.error(e.message);
+      process.exit(1);
+    }
+  });

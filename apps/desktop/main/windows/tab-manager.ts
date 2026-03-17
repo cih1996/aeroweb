@@ -1301,5 +1301,135 @@ export class TabManager {
     return { success: false, message: `Timeout waiting for request: ${urlPattern}`, elapsed: timeout };
   }
 
+  /**
+   * 获取 Cookie
+   * @param tabId Tab ID
+   * @param url 可选，指定 URL（默认使用当前页面 URL）
+   * @param name 可选，指定 Cookie 名称
+   */
+  async getCookies(tabId: string, url?: string, name?: string): Promise<{ success: boolean; cookies: Electron.Cookie[]; message?: string }> {
+    const view = this.views.get(tabId);
+    if (!view) {
+      return { success: false, cookies: [], message: 'Tab not found' };
+    }
+
+    try {
+      const tabSession = view.webContents.session;
+      const targetUrl = url || view.webContents.getURL();
+
+      if (!targetUrl || targetUrl === 'about:blank') {
+        return { success: false, cookies: [], message: 'No URL available' };
+      }
+
+      const filter: Electron.CookiesGetFilter = { url: targetUrl };
+      if (name) {
+        filter.name = name;
+      }
+
+      const cookies = await tabSession.cookies.get(filter);
+      return { success: true, cookies };
+    } catch (error: any) {
+      return { success: false, cookies: [], message: error.message };
+    }
+  }
+
+  /**
+   * 设置 Cookie
+   * @param tabId Tab ID
+   * @param cookie Cookie 对象
+   */
+  async setCookie(tabId: string, cookie: { url?: string; name: string; value: string; domain?: string; path?: string; secure?: boolean; httpOnly?: boolean; expirationDate?: number; sameSite?: 'unspecified' | 'no_restriction' | 'lax' | 'strict' }): Promise<{ success: boolean; message: string }> {
+    const view = this.views.get(tabId);
+    if (!view) {
+      return { success: false, message: 'Tab not found' };
+    }
+
+    try {
+      const tabSession = view.webContents.session;
+      const targetUrl = cookie.url || view.webContents.getURL();
+
+      if (!targetUrl || targetUrl === 'about:blank') {
+        return { success: false, message: 'No URL available' };
+      }
+
+      await tabSession.cookies.set({
+        url: targetUrl,
+        name: cookie.name,
+        value: cookie.value,
+        domain: cookie.domain,
+        path: cookie.path || '/',
+        secure: cookie.secure,
+        httpOnly: cookie.httpOnly,
+        expirationDate: cookie.expirationDate,
+        sameSite: cookie.sameSite,
+      });
+
+      return { success: true, message: `Cookie '${cookie.name}' set` };
+    } catch (error: any) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 删除 Cookie
+   * @param tabId Tab ID
+   * @param url URL
+   * @param name Cookie 名称
+   */
+  async removeCookie(tabId: string, url: string | undefined, name: string): Promise<{ success: boolean; message: string }> {
+    const view = this.views.get(tabId);
+    if (!view) {
+      return { success: false, message: 'Tab not found' };
+    }
+
+    try {
+      const tabSession = view.webContents.session;
+      const targetUrl = url || view.webContents.getURL();
+
+      if (!targetUrl || targetUrl === 'about:blank') {
+        return { success: false, message: 'No URL available' };
+      }
+
+      await tabSession.cookies.remove(targetUrl, name);
+      return { success: true, message: `Cookie '${name}' removed` };
+    } catch (error: any) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 清除所有 Cookie
+   * @param tabId Tab ID
+   * @param url 可选，只清除指定 URL 的 Cookie
+   */
+  async clearCookies(tabId: string, url?: string): Promise<{ success: boolean; message: string; count: number }> {
+    const view = this.views.get(tabId);
+    if (!view) {
+      return { success: false, message: 'Tab not found', count: 0 };
+    }
+
+    try {
+      const tabSession = view.webContents.session;
+      const targetUrl = url || view.webContents.getURL();
+
+      if (!targetUrl || targetUrl === 'about:blank') {
+        return { success: false, message: 'No URL available', count: 0 };
+      }
+
+      // 获取所有 Cookie
+      const cookies = await tabSession.cookies.get({ url: targetUrl });
+      const count = cookies.length;
+
+      // 逐个删除
+      for (const cookie of cookies) {
+        await tabSession.cookies.remove(targetUrl, cookie.name);
+      }
+
+      return { success: true, message: `Cleared ${count} cookies`, count };
+    } catch (error: any) {
+      return { success: false, message: error.message, count: 0 };
+    }
+  }
+
 }
 

@@ -76,12 +76,14 @@ class BrowserClient {
 
     return new Promise((resolve, reject) => {
       const data = body ? JSON.stringify(body) : undefined;
-      // 对 path 进行 URL 编码，处理中文等特殊字符
-      const encodedPath = path.split('/').map(segment => encodeURIComponent(segment)).join('/');
+      // 分离 path 和 query string，只对 path 部分进行编码
+      const [pathPart, queryPart] = path.split('?');
+      const encodedPath = pathPart.split('/').map(segment => encodeURIComponent(segment)).join('/');
+      const fullPath = queryPart ? `${encodedPath}?${queryPart}` : encodedPath;
       const r = http.request({
         hostname: this.host,
         port: this.port,
-        path: `/api${encodedPath}`,
+        path: `/api${fullPath}`,
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -207,6 +209,34 @@ class BrowserClient {
   // 网络监控 - 等待请求
   networkWait(tabId: string, urlPattern: string, timeout?: number) {
     return this.req<{ message: string; elapsed: number; request?: any }>('POST', `/tabs/${tabId}/network/wait`, { url: urlPattern, timeout });
+  }
+
+  // Cookie - 获取
+  getCookies(tabId: string, url?: string, name?: string) {
+    const params = new URLSearchParams();
+    if (url) params.set('url', url);
+    if (name) params.set('name', name);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.req<any[]>('GET', `/tabs/${tabId}/cookies${query}`);
+  }
+
+  // Cookie - 设置
+  setCookie(tabId: string, cookie: { name: string; value: string; url?: string; domain?: string; path?: string; secure?: boolean; httpOnly?: boolean; expirationDate?: number; sameSite?: string }) {
+    return this.req<{ message: string }>('POST', `/tabs/${tabId}/cookies`, cookie);
+  }
+
+  // Cookie - 删除单个
+  removeCookie(tabId: string, name: string, url?: string) {
+    const params = new URLSearchParams();
+    params.set('name', name);
+    if (url) params.set('url', url);
+    return this.req<{ message: string }>('DELETE', `/tabs/${tabId}/cookies?${params.toString()}`);
+  }
+
+  // Cookie - 清空所有
+  clearCookies(tabId: string, url?: string) {
+    const query = url ? `?url=${encodeURIComponent(url)}` : '';
+    return this.req<{ message: string; count: number }>('DELETE', `/tabs/${tabId}/cookies${query}`);
   }
 
   // 应用管理
