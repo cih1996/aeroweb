@@ -136,6 +136,33 @@ export class ApiServer {
         const tabId = decodeURIComponent(pathname.split('/')[3]);
         const body = await this.parseBody(req);
         response = await this.handleType(tabId, body);
+      } else if (pathname.match(/^\/api\/tabs\/[^/]+\/wait-element$/) && method === 'POST') {
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
+        const body = await this.parseBody(req);
+        response = await this.handleWaitElement(tabId, body);
+      } else if (pathname.match(/^\/api\/tabs\/[^/]+\/wait-text$/) && method === 'POST') {
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
+        const body = await this.parseBody(req);
+        response = await this.handleWaitText(tabId, body);
+      } else if (pathname.match(/^\/api\/tabs\/[^/]+\/network\/start$/) && method === 'POST') {
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
+        response = await this.handleNetworkStart(tabId);
+      } else if (pathname.match(/^\/api\/tabs\/[^/]+\/network\/stop$/) && method === 'POST') {
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
+        response = await this.handleNetworkStop(tabId);
+      } else if (pathname.match(/^\/api\/tabs\/[^/]+\/network$/) && method === 'GET') {
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
+        const urlFilter = url.searchParams.get('url') || undefined;
+        const methodFilter = url.searchParams.get('method') || undefined;
+        const statusFilter = url.searchParams.get('status');
+        response = await this.handleNetworkGet(tabId, { url: urlFilter, method: methodFilter, status: statusFilter ? parseInt(statusFilter) : undefined });
+      } else if (pathname.match(/^\/api\/tabs\/[^/]+\/network$/) && method === 'DELETE') {
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
+        response = await this.handleNetworkClear(tabId);
+      } else if (pathname.match(/^\/api\/tabs\/[^/]+\/network\/wait$/) && method === 'POST') {
+        const tabId = decodeURIComponent(pathname.split('/')[3]);
+        const body = await this.parseBody(req);
+        response = await this.handleNetworkWait(tabId, body);
       }
       // 应用管理 API
       else if (pathname === '/api/apps' && method === 'GET') {
@@ -494,6 +521,107 @@ export class ApiServer {
     return {
       success: result.success,
       data: result.success ? { message: result.message } : undefined,
+      error: result.success ? undefined : result.message,
+    };
+  }
+
+  // POST /api/tabs/:id/wait-element
+  private async handleWaitElement(tabId: string, body: any): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+    const { selector, timeout = 30000, visible = false } = body;
+    if (!selector) {
+      return { success: false, error: 'selector is required' };
+    }
+    const result = await this.tabManager.waitForElement(tabId, selector, timeout, visible);
+    return {
+      success: result.success,
+      data: { message: result.message, elapsed: result.elapsed },
+      error: result.success ? undefined : result.message,
+    };
+  }
+
+  // POST /api/tabs/:id/wait-text
+  private async handleWaitText(tabId: string, body: any): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+    const { text, timeout = 30000, selector } = body;
+    if (!text) {
+      return { success: false, error: 'text is required' };
+    }
+    const result = await this.tabManager.waitForText(tabId, text, timeout, selector);
+    return {
+      success: result.success,
+      data: { message: result.message, elapsed: result.elapsed, matchedText: result.matchedText },
+      error: result.success ? undefined : result.message,
+    };
+  }
+
+  // POST /api/tabs/:id/network/start
+  private async handleNetworkStart(tabId: string): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+    const result = await this.tabManager.startNetworkMonitoring(tabId);
+    return {
+      success: result.success,
+      data: result.success ? { message: result.message } : undefined,
+      error: result.success ? undefined : result.message,
+    };
+  }
+
+  // POST /api/tabs/:id/network/stop
+  private async handleNetworkStop(tabId: string): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+    const result = await this.tabManager.stopNetworkMonitoring(tabId);
+    return {
+      success: result.success,
+      data: result.success ? { message: result.message } : undefined,
+      error: result.success ? undefined : result.message,
+    };
+  }
+
+  // GET /api/tabs/:id/network
+  private async handleNetworkGet(tabId: string, filter?: { url?: string; method?: string; status?: number }): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+    const requests = this.tabManager.getNetworkRequests(tabId, filter);
+    return {
+      success: true,
+      data: requests,
+    };
+  }
+
+  // DELETE /api/tabs/:id/network
+  private async handleNetworkClear(tabId: string): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+    this.tabManager.clearNetworkRequests(tabId);
+    return {
+      success: true,
+      data: { message: 'Network requests cleared' },
+    };
+  }
+
+  // POST /api/tabs/:id/network/wait
+  private async handleNetworkWait(tabId: string, body: any): Promise<ApiResponse> {
+    if (!this.tabManager) {
+      return { success: false, error: 'TabManager not initialized' };
+    }
+    const { url: urlPattern, timeout = 30000 } = body;
+    if (!urlPattern) {
+      return { success: false, error: 'url pattern is required' };
+    }
+    const result = await this.tabManager.waitForRequest(tabId, urlPattern, timeout);
+    return {
+      success: result.success,
+      data: { message: result.message, elapsed: result.elapsed, request: result.request },
       error: result.success ? undefined : result.message,
     };
   }

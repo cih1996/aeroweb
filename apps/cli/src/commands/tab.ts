@@ -379,3 +379,145 @@ tabCommand
       process.exit(1);
     }
   });
+
+// 等待元素
+tabCommand
+  .command('wait-element <tabId> <selector>')
+  .alias('wait-el')
+  .description('等待元素出现')
+  .option('-t, --timeout <ms>', '超时时间（毫秒）', '30000')
+  .option('-v, --visible', '要求元素可见')
+  .action(async (tabIdInput, selector, o) => {
+    try {
+      const tabId = await resolveTabId(tabIdInput);
+      const timeout = parseInt(o.timeout, 10);
+      const r = await withLastTab(tabId, () => client.waitElement(tabId, selector, timeout, o.visible));
+      output.success(r, `元素已出现 (${r.elapsed}ms)`);
+    } catch (e: any) {
+      output.error(e.message);
+      process.exit(1);
+    }
+  });
+
+// 等待文本
+tabCommand
+  .command('wait-text <tabId> <text>')
+  .alias('wait-txt')
+  .description('等待文本出现（支持正则如 /pattern/i）')
+  .option('-t, --timeout <ms>', '超时时间（毫秒）', '30000')
+  .option('-s, --selector <selector>', '限定搜索范围')
+  .action(async (tabIdInput, text, o) => {
+    try {
+      const tabId = await resolveTabId(tabIdInput);
+      const timeout = parseInt(o.timeout, 10);
+      const r = await withLastTab(tabId, () => client.waitText(tabId, text, timeout, o.selector));
+      output.success(r, `文本已出现 (${r.elapsed}ms)`);
+    } catch (e: any) {
+      output.error(e.message);
+      process.exit(1);
+    }
+  });
+
+// 网络监控 - 启动
+tabCommand
+  .command('network-start <tabId>')
+  .alias('net-on')
+  .description('启动网络请求监控')
+  .action(async (tabIdInput) => {
+    try {
+      const tabId = await resolveTabId(tabIdInput);
+      const r = await withLastTab(tabId, () => client.networkStart(tabId));
+      output.success(r, '网络监控已启动');
+    } catch (e: any) {
+      output.error(e.message);
+      process.exit(1);
+    }
+  });
+
+// 网络监控 - 停止
+tabCommand
+  .command('network-stop <tabId>')
+  .alias('net-off')
+  .description('停止网络请求监控')
+  .action(async (tabIdInput) => {
+    try {
+      const tabId = await resolveTabId(tabIdInput);
+      const r = await withLastTab(tabId, () => client.networkStop(tabId));
+      output.success(r, '网络监控已停止');
+    } catch (e: any) {
+      output.error(e.message);
+      process.exit(1);
+    }
+  });
+
+// 网络监控 - 获取请求
+tabCommand
+  .command('network <tabId>')
+  .alias('net')
+  .description('获取网络请求记录')
+  .option('-u, --url <pattern>', '按 URL 过滤')
+  .option('-m, --method <method>', '按方法过滤 (GET/POST/...)')
+  .option('-s, --status <code>', '按状态码过滤')
+  .option('--clear', '清空请求记录')
+  .action(async (tabIdInput, o) => {
+    try {
+      const tabId = await resolveTabId(tabIdInput);
+
+      if (o.clear) {
+        const r = await withLastTab(tabId, () => client.networkClear(tabId));
+        output.success(r, '请求记录已清空');
+        return;
+      }
+
+      const filter: any = {};
+      if (o.url) filter.url = o.url;
+      if (o.method) filter.method = o.method;
+      if (o.status) filter.status = parseInt(o.status, 10);
+
+      const requests = await withLastTab(tabId, () => client.networkGet(tabId, Object.keys(filter).length ? filter : undefined));
+
+      if (requests.length === 0) {
+        output.success([], '暂无请求记录（提示：先执行 network-start 启动监控）');
+      } else {
+        const summary = requests.map(r => ({
+          method: r.method,
+          status: r.status || '-',
+          duration: r.duration ? `${r.duration}ms` : '-',
+          size: r.size ? `${Math.round(r.size / 1024)}KB` : '-',
+          url: r.url.length > 60 ? r.url.substring(0, 60) + '...' : r.url,
+        }));
+        output.table(summary, ['method', 'status', 'duration', 'size', 'url']);
+      }
+    } catch (e: any) {
+      output.error(e.message);
+      process.exit(1);
+    }
+  });
+
+// 网络监控 - 等待请求
+tabCommand
+  .command('network-wait <tabId> <urlPattern>')
+  .alias('net-wait')
+  .description('等待特定网络请求完成')
+  .option('-t, --timeout <ms>', '超时时间（毫秒）', '30000')
+  .action(async (tabIdInput, urlPattern, o) => {
+    try {
+      const tabId = await resolveTabId(tabIdInput);
+      const timeout = parseInt(o.timeout, 10);
+      const r = await withLastTab(tabId, () => client.networkWait(tabId, urlPattern, timeout));
+      if (r.request) {
+        output.success({
+          url: r.request.url,
+          method: r.request.method,
+          status: r.request.status,
+          duration: r.request.duration,
+          elapsed: r.elapsed,
+        }, `请求已完成 (${r.elapsed}ms)`);
+      } else {
+        output.success(r);
+      }
+    } catch (e: any) {
+      output.error(e.message);
+      process.exit(1);
+    }
+  });

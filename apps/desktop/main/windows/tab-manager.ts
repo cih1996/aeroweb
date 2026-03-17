@@ -15,6 +15,23 @@ interface ConsoleLogEntry {
   timestamp: number;
 }
 
+// 网络请求条目
+interface NetworkRequestEntry {
+  id: string;
+  url: string;
+  method: string;
+  resourceType: string;
+  status?: number;
+  statusText?: string;
+  responseHeaders?: Record<string, string>;
+  requestHeaders?: Record<string, string>;
+  startTime: number;
+  endTime?: number;
+  duration?: number;
+  size?: number;
+  error?: string;
+}
+
 export class TabManager {
   private tabs: Map<string, Tab> = new Map();
   private views: Map<string, BrowserView> = new Map();
@@ -30,6 +47,11 @@ export class TabManager {
   // 控制台日志存储（每个 tab 最多 100 条）
   private consoleLogs: Map<string, ConsoleLogEntry[]> = new Map();
   private readonly MAX_CONSOLE_LOGS = 100;
+  // 网络请求存储（每个 tab 最多 200 条）
+  private networkRequests: Map<string, NetworkRequestEntry[]> = new Map();
+  private readonly MAX_NETWORK_REQUESTS = 200;
+  // 网络监控状态
+  private networkMonitoringTabs: Set<string> = new Set();
 
   constructor(mainWindow: BrowserWindow, browserService: BrowserService, downloadManager: DownloadManager) {
     this.mainWindow = mainWindow;
@@ -366,6 +388,10 @@ export class TabManager {
 
     // 清理控制台日志
     this.consoleLogs.delete(tabId);
+
+    // 清理网络请求记录
+    this.networkRequests.delete(tabId);
+    this.networkMonitoringTabs.delete(tabId);
 
     this.tabs.delete(tabId);
 
@@ -1008,6 +1034,271 @@ export class TabManager {
     } catch (error: any) {
       return { success: false, message: error.message };
     }
+  }
+
+  /**
+   * 等待元素出现 API
+   * @param tabId Tab ID
+   * @param selector CSS 选择器
+   * @param timeout 超时时间（毫秒）
+   * @param visible 是否要求元素可见
+   */
+  async waitForElement(tabId: string, selector: string, timeout: number = 30000, visible: boolean = false): Promise<{ success: boolean; message: string; elapsed: number }> {
+    const view = this.views.get(tabId);
+    if (!view) {
+      return { success: false, message: 'Tab not found', elapsed: 0 };
+    }
+
+    const startTime = Date.now();
+    const interval = 100; // 每 100ms 检查一次
+
+    while (Date.now() - startTime < timeout) {
+      try {
+        const found = await view.webContents.executeJavaScript(`
+          (function() {
+            const el = document.querySelector('${selector.replace(/'/g, "\\'")}');
+            if (!el) return { found: false };
+            ${visible ? `
+            const rect = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
+            const isVisible = rect.width > 0 && rect.height > 0 &&
+                              style.visibility !== 'hidden' &&
+                              style.display !== 'none' &&
+                              style.opacity !== '0';
+            return { found: isVisible };
+            ` : 'return { found: true };'}
+          })()
+        `);
+
+        if (found.found) {
+          return { success: true, message: 'Element found', elapsed: Date.now() - startTime };
+        }
+      } catch (error) {
+        // 页面可能正在加载，继续等待
+      }
+
+      await new Promise(r => setTimeout(r, interval));
+    }
+
+    return { success: false, message: `Timeout waiting for element: ${selector}`, elapsed: timeout };
+  }
+
+  /**
+   * 等待文本出现 API
+   * @param tabId Tab ID
+   * @param text 要等待的文本（支持正则）
+   * @param timeout 超时时间（毫秒）
+   * @param selector 可选，限定搜索范围
+   */
+  async waitForText(tabId: string, text: string, timeout: number = 30000, selector?: string): Promise<{ success: boolean; message: string; elapsed: number; matchedText?: string }> {
+    const view = this.views.get(tabId);
+    if (!view) {
+      return { success: false, message: 'Tab not found', elapsed: 0 };
+    }
+
+    const startTime = Date.now();
+    const interval = 100;
+    const isRegex = text.startsWith('/') && text.lastIndexOf('/') > 0;
+
+    while (Date.now() - startTime < timeout) {
+      try {
+        const result = await view.webContents.executeJavaScript(`
+          (function() {
+            const container = ${selector ? `document.querySelector('${selector.replace(/'/g, "\\'")}')` : 'document.body'};
+            if (!container) return { found: false };
+            const pageText = container.innerText || '';
+            ${isRegex ? `
+            const regexStr = '${text.slice(1, text.lastIndexOf('/'))}';
+            const flags = '${text.slice(text.lastIndexOf('/') + 1)}';
+            const regex = new RegExp(regexStr, flags);
+            const match = pageText.match(regex);
+            return match ? { found: true, matchedText: match[0] } : { found: false };
+            ` : `
+            const found = pageText.includes('${text.replace(/'/g, "\\'")}');
+            return { found, matchedText: found ? '${text.replace(/'/g, "\\'")}' : null };
+            `}
+          })()
+        `);
+
+        if (result.found) {
+          return { success: true, message: 'Text found', elapsed: Date.now() - startTime, matchedText: result.matchedText };
+        }
+      } catch (error) {
+        // 页面可能正在加载，继续等待
+      }
+
+      await new Promise(r => setTimeout(r, interval));
+    }
+
+    return { success: false, message: `Timeout waiting for text: ${text}`, elapsed: timeout };
+  }
+
+  /**
+   * 启动网络请求监控
+   * @param tabId Tab ID
+   */
+  async startNetworkMonitoring(tabId: string): Promise<{ success: boolean; message: string }> {
+    const view = this.views.get(tabId);
+    if (!view) {
+      return { success: false, message: 'Tab not found' };
+    }
+
+    if (this.networkMonitoringTabs.has(tabId)) {
+      return { success: true, message: 'Already monitoring' };
+    }
+
+    try {
+      const dbg = view.webContents.debugger;
+      if (!dbg.isAttached()) {
+        dbg.attach('1.3');
+      }
+
+      // 启用网络监控
+      await dbg.sendCommand('Network.enable');
+
+      // 初始化存储
+      this.networkRequests.set(tabId, []);
+      this.networkMonitoringTabs.add(tabId);
+
+      // 监听网络事件
+      dbg.on('message', (event, method, params) => {
+        if (!this.networkMonitoringTabs.has(tabId)) return;
+
+        const requests = this.networkRequests.get(tabId) || [];
+
+        if (method === 'Network.requestWillBeSent') {
+          const entry: NetworkRequestEntry = {
+            id: params.requestId,
+            url: params.request.url,
+            method: params.request.method,
+            resourceType: params.type,
+            requestHeaders: params.request.headers,
+            startTime: Date.now(),
+          };
+          requests.push(entry);
+
+          // 保持最大数量
+          if (requests.length > this.MAX_NETWORK_REQUESTS) {
+            requests.shift();
+          }
+          this.networkRequests.set(tabId, requests);
+        } else if (method === 'Network.responseReceived') {
+          const entry = requests.find(r => r.id === params.requestId);
+          if (entry) {
+            entry.status = params.response.status;
+            entry.statusText = params.response.statusText;
+            entry.responseHeaders = params.response.headers;
+          }
+        } else if (method === 'Network.loadingFinished') {
+          const entry = requests.find(r => r.id === params.requestId);
+          if (entry) {
+            entry.endTime = Date.now();
+            entry.duration = entry.endTime - entry.startTime;
+            entry.size = params.encodedDataLength;
+          }
+        } else if (method === 'Network.loadingFailed') {
+          const entry = requests.find(r => r.id === params.requestId);
+          if (entry) {
+            entry.endTime = Date.now();
+            entry.duration = entry.endTime - entry.startTime;
+            entry.error = params.errorText;
+          }
+        }
+      });
+
+      return { success: true, message: 'Network monitoring started' };
+    } catch (error: any) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 停止网络请求监控
+   * @param tabId Tab ID
+   */
+  async stopNetworkMonitoring(tabId: string): Promise<{ success: boolean; message: string }> {
+    const view = this.views.get(tabId);
+    if (!view) {
+      return { success: false, message: 'Tab not found' };
+    }
+
+    if (!this.networkMonitoringTabs.has(tabId)) {
+      return { success: true, message: 'Not monitoring' };
+    }
+
+    try {
+      const dbg = view.webContents.debugger;
+      if (dbg.isAttached()) {
+        await dbg.sendCommand('Network.disable');
+        dbg.detach();
+      }
+
+      this.networkMonitoringTabs.delete(tabId);
+      return { success: true, message: 'Network monitoring stopped' };
+    } catch (error: any) {
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * 获取网络请求记录
+   * @param tabId Tab ID
+   * @param filter 可选过滤条件
+   */
+  getNetworkRequests(tabId: string, filter?: { url?: string; method?: string; status?: number }): NetworkRequestEntry[] {
+    let requests = this.networkRequests.get(tabId) || [];
+
+    if (filter) {
+      if (filter.url) {
+        const urlPattern = filter.url;
+        requests = requests.filter(r => r.url.includes(urlPattern));
+      }
+      if (filter.method) {
+        requests = requests.filter(r => r.method.toUpperCase() === filter.method!.toUpperCase());
+      }
+      if (filter.status !== undefined) {
+        requests = requests.filter(r => r.status === filter.status);
+      }
+    }
+
+    return requests;
+  }
+
+  /**
+   * 清空网络请求记录
+   * @param tabId Tab ID
+   */
+  clearNetworkRequests(tabId: string): void {
+    this.networkRequests.set(tabId, []);
+  }
+
+  /**
+   * 等待特定网络请求
+   * @param tabId Tab ID
+   * @param urlPattern URL 匹配模式
+   * @param timeout 超时时间
+   */
+  async waitForRequest(tabId: string, urlPattern: string, timeout: number = 30000): Promise<{ success: boolean; message: string; request?: NetworkRequestEntry; elapsed: number }> {
+    if (!this.networkMonitoringTabs.has(tabId)) {
+      // 自动启动监控
+      await this.startNetworkMonitoring(tabId);
+    }
+
+    const startTime = Date.now();
+    const interval = 100;
+
+    while (Date.now() - startTime < timeout) {
+      const requests = this.networkRequests.get(tabId) || [];
+      const match = requests.find(r => r.url.includes(urlPattern) && r.status !== undefined);
+
+      if (match) {
+        return { success: true, message: 'Request found', request: match, elapsed: Date.now() - startTime };
+      }
+
+      await new Promise(r => setTimeout(r, interval));
+    }
+
+    return { success: false, message: `Timeout waiting for request: ${urlPattern}`, elapsed: timeout };
   }
 
 }

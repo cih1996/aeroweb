@@ -169,6 +169,46 @@ class BrowserClient {
     return this.req<{ message: string }>('POST', `/tabs/${tabId}/type`, { selector, text, clear });
   }
 
+  // 等待元素
+  waitElement(tabId: string, selector: string, timeout?: number, visible?: boolean) {
+    return this.req<{ message: string; elapsed: number }>('POST', `/tabs/${tabId}/wait-element`, { selector, timeout, visible });
+  }
+
+  // 等待文本
+  waitText(tabId: string, text: string, timeout?: number, selector?: string) {
+    return this.req<{ message: string; elapsed: number; matchedText?: string }>('POST', `/tabs/${tabId}/wait-text`, { text, timeout, selector });
+  }
+
+  // 网络监控 - 启动
+  networkStart(tabId: string) {
+    return this.req<{ message: string }>('POST', `/tabs/${tabId}/network/start`);
+  }
+
+  // 网络监控 - 停止
+  networkStop(tabId: string) {
+    return this.req<{ message: string }>('POST', `/tabs/${tabId}/network/stop`);
+  }
+
+  // 网络监控 - 获取请求
+  networkGet(tabId: string, filter?: { url?: string; method?: string; status?: number }) {
+    const params = new URLSearchParams();
+    if (filter?.url) params.set('url', filter.url);
+    if (filter?.method) params.set('method', filter.method);
+    if (filter?.status !== undefined) params.set('status', String(filter.status));
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return this.req<any[]>('GET', `/tabs/${tabId}/network${query}`);
+  }
+
+  // 网络监控 - 清空
+  networkClear(tabId: string) {
+    return this.req<{ message: string }>('DELETE', `/tabs/${tabId}/network`);
+  }
+
+  // 网络监控 - 等待请求
+  networkWait(tabId: string, urlPattern: string, timeout?: number) {
+    return this.req<{ message: string; elapsed: number; request?: any }>('POST', `/tabs/${tabId}/network/wait`, { url: urlPattern, timeout });
+  }
+
   // 应用管理
   listApps() {
     return this.req<AppInfo[]>('GET', '/apps');

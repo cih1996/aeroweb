@@ -77,6 +77,9 @@ importers:
       call-bind-apply-helpers:
         specifier: ^1.0.0
         version: 1.0.2
+      call-bound:
+        specifier: ^1.0.4
+        version: 1.0.4
       content-disposition:
         specifier: ^0.5.4
         version: 0.5.4
