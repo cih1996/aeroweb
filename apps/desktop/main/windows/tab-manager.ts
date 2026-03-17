@@ -447,8 +447,6 @@ export class TabManager {
     console.log('[TabManager] Tab activated, activeTabId:', this.activeTabId);
 
     return true;
-
-    return true;
   }
 
   async listTabs(): Promise<Tab[]> {

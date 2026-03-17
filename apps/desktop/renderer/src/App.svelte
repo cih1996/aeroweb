@@ -102,11 +102,9 @@
     });
 
     window.electronAPI.on('tab:loaded', async (data: any) => {
-      if (isLoading && data.tabId) {
-        isLoading = false;
-      }
-      await loadTabs();
+      // 只在当前激活的 tab 加载完成时更新状态
       if (data.tabId === activeTabId) {
+        await loadTabs();
         await updateNavState(data.tabId);
       }
     });
@@ -135,8 +133,11 @@
     }));
     const activeTab = rawTabs.find((t: any) => t.active);
     if (activeTab) {
-      activeTabId = activeTab.id;
-      updateSubTabs(activeTab.id);
+      // 只在没有 activeTabId 或 activeTabId 不在 tabs 中时更新
+      if (!activeTabId || !tabs.find(t => t.id === activeTabId)) {
+        activeTabId = activeTab.id;
+      }
+      updateSubTabs(activeTabId || activeTab.id);
     }
   }
 
@@ -204,13 +205,15 @@
     showCreateForm = false;
 
     try {
-      await window.electronAPI.session.open(session.id);
+      const tab = await window.electronAPI.session.open(session.id);
+      // 立即设置 activeTabId，确保 showBrowser 为 true
+      if (tab && tab.id) {
+        activeTabId = tab.id;
+      }
       await loadTabs();
       await loadSessions();
-
-      setTimeout(() => {
-        if (isLoading) isLoading = false;
-      }, 10000);
+      // 加载完成后关闭 loading
+      isLoading = false;
     } catch (error) {
       console.error('打开 Session 失败:', error);
       isLoading = false;
