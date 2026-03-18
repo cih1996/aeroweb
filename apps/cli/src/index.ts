@@ -9,16 +9,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { execSync } from 'child_process';
 
-// 读取版本号（从 desktop package.json）
+// 读取版本号
 function getVersion(): string {
-  try {
-    const pkgPath = path.resolve(__dirname, '../../desktop/package.json');
-    if (fs.existsSync(pkgPath)) {
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-      return pkg.version || '1.0.0';
-    }
-  } catch {}
-  return '1.0.0';
+  // 打包后无法读取 package.json，直接返回版本号
+  return '1.2.5';
 }
 
 // ============ 自安装逻辑 ============
