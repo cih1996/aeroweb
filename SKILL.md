@@ -32,6 +32,22 @@ aeroweb tab screenshot <tabId> -o <文件>          # 截图
 aeroweb tab snapshot <tabId>                      # 获取 DOM 快照
 aeroweb tab console <tabId>                       # 获取控制台日志
 
+# 等待 API
+aeroweb tab wait-element <tabId> "<选择器>"       # 等待元素出现
+aeroweb tab wait-text <tabId> "<文本>"            # 等待文本出现（支持正则如 /pattern/i）
+
+# 网络监控
+aeroweb tab network-start <tabId>                 # 启动网络请求监控
+aeroweb tab network <tabId>                       # 获取请求列表
+aeroweb tab network-wait <tabId> "<URL模式>"      # 等待特定请求完成
+aeroweb tab network-stop <tabId>                  # 停止监控
+
+# Cookie 管理
+aeroweb tab cookies <tabId>                       # 获取 Cookie 列表
+aeroweb tab cookie-set <tabId> <名称> <值>        # 设置 Cookie
+aeroweb tab cookie-delete <tabId> <名称>          # 删除 Cookie
+aeroweb tab cookies-clear <tabId>                 # 清空所有 Cookie
+
 # 会话管理（多账号）
 aeroweb sessions                                  # 列出会话
 aeroweb session new "名称" "URL" -o               # 创建并打开会话
@@ -71,10 +87,27 @@ aeroweb tab type @last "#password" "123456" -c
 aeroweb tab click @last "button[type=submit]"
 ```
 
-### 获取页面数据
+### 等待页面加载完成
 ```bash
-aeroweb tab exec @last -e "document.title"
-aeroweb tab exec @last -e "document.querySelector('h1').innerText"
+aeroweb tab new "https://example.com"
+aeroweb tab wait-element @last ".content"         # 等待内容区域出现
+aeroweb tab wait-text @last "加载完成"            # 等待特定文本
+```
+
+### 监控网络请求
+```bash
+aeroweb tab network-start @last                   # 开始监控
+aeroweb tab exec @last -e "fetch('/api/data')"    # 触发请求
+aeroweb tab network @last                         # 查看请求列表
+aeroweb tab network-stop @last                    # 停止监控
+```
+
+### 管理 Cookie
+```bash
+aeroweb tab cookies @last                         # 查看所有 Cookie
+aeroweb tab cookie-set @last "token" "abc123"     # 设置 Cookie
+aeroweb tab cookie-delete @last "token"           # 删除 Cookie
+aeroweb tab cookies-clear @last                   # 清空所有
 ```
 
 ### 多账号登录（使用不同缓存）
