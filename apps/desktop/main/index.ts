@@ -278,51 +278,43 @@ app.whenReady().then(async () => {
     console.error('[Main] HTTP API 服务器启动失败:', err);
   }
 
-  // 注册全局快捷键拦截刷新（F5, Ctrl+R）
-  // 这样无论焦点在哪里都能拦截
-  const registerRefreshShortcuts = () => {
-    // 注册 F5 - 全局快捷键会在所有键盘输入之前拦截
-    const f5Registered = globalShortcut.register('F5', () => {
-      console.log('[Main] 全局快捷键 F5 被按下');
-      // 全局快捷键会自动阻止默认行为，所以不需要额外处理
-      if (tabManager) {
-        const activeTabId = tabManager.getActiveTabId();
-        if (activeTabId) {
-          console.log('[Main] 刷新 tab:', activeTabId);
-          tabManager.reloadTab(activeTabId).catch((error) => {
-            console.error('[Main] 刷新 tab 失败:', error);
-          });
-        } else {
-          console.log('[Main] 没有激活的 tab，忽略刷新');
-        }
+  // 刷新快捷键处理函数
+  const handleRefresh = () => {
+    if (tabManager) {
+      const activeTabId = tabManager.getActiveTabId();
+      if (activeTabId) {
+        console.log('[Main] 刷新 tab:', activeTabId);
+        tabManager.reloadTab(activeTabId).catch((error) => {
+          console.error('[Main] 刷新 tab 失败:', error);
+        });
       }
-    });
-
-    // 注册 Ctrl+R (Windows/Linux) 或 Cmd+R (macOS)
-    const ctrlRRegistered = globalShortcut.register('CommandOrControl+R', () => {
-      console.log('[Main] 全局快捷键 Ctrl+R 被按下');
-      // 全局快捷键会自动阻止默认行为
-      if (tabManager) {
-        const activeTabId = tabManager.getActiveTabId();
-        if (activeTabId) {
-          console.log('[Main] 刷新 tab:', activeTabId);
-          tabManager.reloadTab(activeTabId).catch((error) => {
-            console.error('[Main] 刷新 tab 失败:', error);
-          });
-        } else {
-          console.log('[Main] 没有激活的 tab，忽略刷新');
-        }
-      }
-    });
-
-    if (f5Registered && ctrlRRegistered) {
-      console.log('[Main] ✅ 全局刷新快捷键已注册 (F5, Ctrl+R)');
-    } else {
-      console.warn('[Main] ⚠️ 全局刷新快捷键注册失败 - F5:', f5Registered, 'Ctrl+R:', ctrlRRegistered);
     }
   };
 
-  registerRefreshShortcuts();
+  // 注册快捷键（仅在窗口获得焦点时生效）
+  const registerRefreshShortcuts = () => {
+    globalShortcut.register('F5', handleRefresh);
+    globalShortcut.register('CommandOrControl+R', handleRefresh);
+    console.log('[Main] ✅ 刷新快捷键已注册');
+  };
+
+  // 注销快捷键
+  const unregisterRefreshShortcuts = () => {
+    globalShortcut.unregister('F5');
+    globalShortcut.unregister('CommandOrControl+R');
+    console.log('[Main] 刷新快捷键已注销');
+  };
+
+  // 窗口获得焦点时注册，失去焦点时注销
+  if (mainWindow) {
+    mainWindow.on('focus', registerRefreshShortcuts);
+    mainWindow.on('blur', unregisterRefreshShortcuts);
+
+    // 如果窗口当前已获得焦点，立即注册
+    if (mainWindow.isFocused()) {
+      registerRefreshShortcuts();
+    }
+  }
 
   // 注册 IPC 处理器
   setupIPC();

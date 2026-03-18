@@ -79,6 +79,25 @@
   // 是否显示浏览器（有激活的标签页时显示）
   $: showBrowser = activeTabId !== null;
 
+  // 防抖函数
+  function debounce<T extends (...args: any[]) => any>(fn: T, delay: number): T {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    return ((...args: any[]) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => fn(...args), delay);
+    }) as T;
+  }
+
+  // 防抖的 loadTabs（200ms 内多次调用只执行一次）
+  const debouncedLoadTabs = debounce(async () => {
+    await loadTabs();
+  }, 200);
+
+  // 防抖的导航状态更新
+  const debouncedUpdateNavState = debounce(async (tabId: string) => {
+    await updateNavState(tabId);
+  }, 100);
+
   onMount(async () => {
     // 检测平台
     platform = (navigator.platform.toLowerCase().includes('mac') ? 'darwin' :
@@ -87,25 +106,30 @@
     await loadSessions();
     await loadTabs();
 
-    // 监听 Tab 更新事件
+    // 监听 Tab 更新事件（使用防抖）
     window.electronAPI.on('tab:update', async (data: any) => {
-      await loadTabs();
-      if (activeTabId) {
-        await updateNavState(activeTabId);
+      // 只更新单个 tab 的数据，不重新加载全部
+      const tabIndex = tabs.findIndex(t => t.id === data.tabId);
+      if (tabIndex >= 0 && data.updates) {
+        tabs[tabIndex] = { ...tabs[tabIndex], ...data.updates };
+        tabs = tabs; // 触发 Svelte 响应
+      } else {
+        debouncedLoadTabs();
       }
     });
 
     window.electronAPI.on('tab:activate', async (data: any) => {
       activeTabId = data.tabId;
-      await loadTabs();
-      await updateNavState(data.tabId);
+      if (data.tabId) {
+        updateSubTabs(data.tabId);
+        debouncedUpdateNavState(data.tabId);
+      }
     });
 
     window.electronAPI.on('tab:loaded', async (data: any) => {
-      // 只在当前激活的 tab 加载完成时更新状态
+      // 只更新导航状态，不重新加载 tabs
       if (data.tabId === activeTabId) {
-        await loadTabs();
-        await updateNavState(data.tabId);
+        debouncedUpdateNavState(data.tabId);
       }
     });
 
